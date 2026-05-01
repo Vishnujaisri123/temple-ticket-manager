@@ -11,7 +11,7 @@ const startScheduler = require('./services/scheduler');
 const app = express();
 
 app.use(cors({
-  origin: [process.env.CLIENT_URL, 'http://localhost:5173'],
+  origin: (origin, callback) => callback(null, true),
   credentials: true,
 }));
 app.use(express.json());
@@ -25,6 +25,9 @@ app.use('/uploads', (req, res, next) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/bookings', bookingRoutes);
+
+// Health check
+app.get('/', (req, res) => res.json({ status: 'Temple Ticket API running' }));
 
 // Global error handler
 app.use((err, req, res, next) => {
