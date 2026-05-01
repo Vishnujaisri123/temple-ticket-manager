@@ -1,0 +1,156 @@
+import { useState, useEffect, useCallback } from 'react';
+import { getBookings } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { toast } from '../components/Toast';
+import BookingTable from '../components/BookingTable';
+import AddBookingForm from '../components/AddBookingForm';
+import History from './History';
+
+const FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'paid', label: '💰 Paid' },
+  { key: 'unpaid', label: '❌ Unpaid' },
+  { key: 'sent', label: '📤 Sent' },
+  { key: 'pending', label: '⏳ Pending' },
+  { key: 'reminder', label: '🔔 Reminders' },
+];
+
+const Dashboard = () => {
+  const { username, logout } = useAuth();
+  const [page, setPage] = useState('dashboard'); // 'dashboard' | 'history'
+  const [bookings, setBookings] = useState([]);
+  const [filter, setFilter] = useState('all');
+  const [sort, setSort] = useState('asc');
+  const [loading, setLoading] = useState(true);
+
+  const fetchBookings = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (filter !== 'all') params.status = filter;
+      params.sort = sort;
+      const { data } = await getBookings(params);
+      setBookings(data);
+    } catch (err) {
+      toast(err.response?.data?.message || 'Failed to load bookings', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [filter, sort]);
+
+  useEffect(() => { if (page === 'dashboard') fetchBookings(); }, [fetchBookings, page]);
+
+  const stats = {
+    total: bookings.length,
+    paid: bookings.filter((b) => b.paid).length,
+    sent: bookings.filter((b) => b.pdfSent).length,
+    completed: bookings.filter((b) => b.completed).length,
+  };
+
+  return (
+    <div className="app-layout">
+      <nav className="navbar">
+        <div className="navbar-brand">
+          <span className="icon">🕌</span>
+          <div>
+            <h1>Temple Ticket Manager</h1>
+            <span>Sri Venkateswara Swami Temple, Vadapalli</span>
+          </div>
+        </div>
+        <div className="navbar-right">
+          {/* Page tabs in navbar */}
+          <div style={{ display: 'flex', gap: '0.25rem' }}>
+            <button
+              onClick={() => setPage('dashboard')}
+              style={{
+                padding: '0.35rem 0.9rem', borderRadius: '6px', border: 'none',
+                cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem',
+                background: page === 'dashboard' ? 'rgba(255,255,255,0.25)' : 'transparent',
+                color: '#fff', transition: 'background 0.2s',
+              }}
+            >
+              📋 Dashboard
+            </button>
+            <button
+              onClick={() => setPage('history')}
+              style={{
+                padding: '0.35rem 0.9rem', borderRadius: '6px', border: 'none',
+                cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem',
+                background: page === 'history' ? 'rgba(255,255,255,0.25)' : 'transparent',
+                color: '#fff', transition: 'background 0.2s',
+              }}
+            >
+              📜 History
+            </button>
+          </div>
+          <span className="user">👤 {username}</span>
+          <button className="btn-logout" onClick={logout}>Logout</button>
+        </div>
+      </nav>
+
+      {page === 'history' ? (
+        <main className="main-content">
+          <History />
+        </main>
+      ) : (
+        <main className="main-content">
+          <div className="dashboard-header">
+            <div className="dashboard-title">
+              <h2>Booking Dashboard</h2>
+              <p>Manage all temple ticket bookings</p>
+            </div>
+            <div className="controls">
+              <select className="sort-select" value={sort} onChange={(e) => setSort(e.target.value)}>
+                <option value="asc">Visit Date ↑</option>
+                <option value="desc">Visit Date ↓</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="stats-bar">
+            <div className="stat-card">
+              <span className="stat-icon">📋</span>
+              <div className="stat-info"><div className="label">Total</div><div className="value">{stats.total}</div></div>
+            </div>
+            <div className="stat-card">
+              <span className="stat-icon">💰</span>
+              <div className="stat-info"><div className="label">Paid</div><div className="value">{stats.paid}</div></div>
+            </div>
+            <div className="stat-card">
+              <span className="stat-icon">📤</span>
+              <div className="stat-info"><div className="label">Sent</div><div className="value">{stats.sent}</div></div>
+            </div>
+            <div className="stat-card">
+              <span className="stat-icon">✅</span>
+              <div className="stat-info"><div className="label">Completed</div><div className="value">{stats.completed}</div></div>
+            </div>
+          </div>
+
+          <AddBookingForm onAdded={(b) => setBookings((prev) => [b, ...prev])} />
+
+          <div className="filter-tabs" style={{ marginBottom: '1rem' }}>
+            {FILTERS.map((f) => (
+              <button
+                key={f.key}
+                className={`filter-tab ${filter === f.key ? 'active' : ''}`}
+                onClick={() => setFilter(f.key)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+              Loading bookings...
+            </div>
+          ) : (
+            <BookingTable bookings={bookings} setBookings={setBookings} />
+          )}
+        </main>
+      )}
+    </div>
+  );
+};
+
+export default Dashboard;
