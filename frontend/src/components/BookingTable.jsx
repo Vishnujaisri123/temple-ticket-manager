@@ -117,7 +117,7 @@ const BookingTable = ({ bookings, setBookings }) => {
               <tr>
                 <th>#</th><th>Booking Date</th><th>Visit Date</th><th>Phone</th>
                 <th>Member 1</th><th>Member 2</th><th>Gothram</th>
-                <th>✅</th><th>📤</th><th>💰</th><th>📎 PDF</th><th>Actions</th>
+                <th>✅ Done</th><th>📤 Sent</th><th>💰 Paid</th><th>📎 PDF</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
