@@ -64,11 +64,11 @@ const AddBookingForm = ({ onAdded }) => {
         <form onSubmit={handleSubmit} style={{ marginTop: '1rem' }}>
           <div className="booking-form-grid">
             <div className="form-group">
-              <label>Booking Date</label>
+              <label>Bookers Date</label>
               <input type="date" name="bookingDate" value={form.bookingDate} onChange={handleChange} />
             </div>
             <div className="form-group">
-              <label>Visit Date *</label>
+              <label>Booked Date *</label>
               <input type="date" name="visitDate" value={form.visitDate} onChange={handleChange} required />
             </div>
             <div className="form-group">

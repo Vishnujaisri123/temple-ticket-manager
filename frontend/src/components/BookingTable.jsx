@@ -115,7 +115,7 @@ const BookingTable = ({ bookings, setBookings }) => {
           <table>
             <thead>
               <tr>
-                <th>#</th><th>Booking Date</th><th>Visit Date</th><th>Phone</th>
+                <th>#</th><th>Bookers Date</th><th>Booked Date</th><th>Phone</th>
                 <th>Member 1</th><th>Member 2</th><th>Gothram</th>
                 <th>✅ Done</th><th>📤 Sent</th><th>💰 Paid</th><th>📎 PDF</th><th>Actions</th>
               </tr>
@@ -185,7 +185,7 @@ const BookingTable = ({ bookings, setBookings }) => {
                 <div className="card-serial">{b.serialNo}</div>
                 <div>
                   <div className="card-name">{b.member1}{b.member2 ? ` & ${b.member2}` : ''}</div>
-                  <div className="card-date">📅 Visit: {fmt(b.visitDate)}</div>
+                  <div className="card-date">📅 Booked: {fmt(b.visitDate)}</div>
                 </div>
               </div>
               <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }}
@@ -201,7 +201,7 @@ const BookingTable = ({ bookings, setBookings }) => {
                 <span className="card-value">{b.gothram || '—'}</span>
               </div>
               <div className="card-row">
-                <span className="card-label">📅 Booking Date</span>
+                <span className="card-label">📅 Bookers Date</span>
                 <span className="card-value">{fmt(b.bookingDate)}</span>
               </div>
               <div className="card-checkboxes">
