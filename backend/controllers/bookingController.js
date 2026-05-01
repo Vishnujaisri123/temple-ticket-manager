@@ -127,4 +127,9 @@ const getReminderBookings = async (req, res) => {
   res.json(bookings);
 };
 
-module.exports = { getAll, create, update, remove, uploadPdf, getReminderBookings };
+const getTotalCount = async (req, res) => {
+  const total = await Booking.countDocuments();
+  res.json({ total });
+};
+
+module.exports = { getAll, create, update, remove, uploadPdf, getReminderBookings, getTotalCount };

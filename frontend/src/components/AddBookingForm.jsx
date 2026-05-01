@@ -17,7 +17,15 @@ const AddBookingForm = ({ onAdded }) => {
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    if (e.target.name === 'phone') {
+      // Only allow digits, max 10
+      const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+      setForm({ ...form, phone: digits });
+    } else {
+      setForm({ ...form, [e.target.name]: e.target.value });
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,9 +33,14 @@ const AddBookingForm = ({ onAdded }) => {
       toast('Visit date, phone and member 1 are required', 'error');
       return;
     }
+    if (form.phone.length !== 10) {
+      toast('Phone number must be exactly 10 digits', 'error');
+      return;
+    }
     setLoading(true);
     try {
-      const { data } = await createBooking(form);
+      // Store as 91XXXXXXXXXX
+      const { data } = await createBooking({ ...form, phone: '91' + form.phone });
       onAdded(data);
       setForm(defaultForm);
       setOpen(false);
@@ -60,7 +73,19 @@ const AddBookingForm = ({ onAdded }) => {
             </div>
             <div className="form-group">
               <label>Phone *</label>
-              <input type="tel" name="phone" value={form.phone} onChange={handleChange} placeholder="91XXXXXXXXXX" required />
+              <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', background: 'var(--bg)' }}>
+                <span style={{ padding: '0.5rem 0.6rem', background: '#f0e8e4', color: 'var(--primary)', fontWeight: 700, fontSize: '0.875rem', borderRight: '1.5px solid var(--border)', whiteSpace: 'nowrap' }}>+91</span>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={form.phone}
+                  onChange={handleChange}
+                  placeholder="10 digit number"
+                  maxLength={10}
+                  required
+                  style={{ border: 'none', background: 'transparent', padding: '0.5rem 0.65rem', fontSize: '0.875rem', width: '100%', outline: 'none' }}
+                />
+              </div>
             </div>
             <div className="form-group">
               <label>Member 1 *</label>

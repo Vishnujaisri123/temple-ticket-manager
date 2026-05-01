@@ -3,11 +3,12 @@ const router = express.Router();
 const protect = require('../middleware/auth');
 const { upload } = require('../config/cloudinary');
 const {
-  getAll, create, update, remove, uploadPdf, getReminderBookings,
+  getAll, create, update, remove, uploadPdf, getReminderBookings, getTotalCount,
 } = require('../controllers/bookingController');
 
 router.use(protect);
 
+router.get('/count', getTotalCount);
 router.get('/reminders', getReminderBookings);
 router.get('/', getAll);
 router.post('/', create);

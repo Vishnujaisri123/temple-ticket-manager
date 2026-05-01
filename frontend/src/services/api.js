@@ -22,6 +22,7 @@ api.interceptors.response.use(
 );
 
 export const getBookings = (params) => api.get('/bookings', { params });
+export const getTotalCount = () => api.get('/bookings/count');
 export const createBooking = (data) => api.post('/bookings', data);
 export const updateBooking = (id, data) => api.put(`/bookings/${id}`, data);
 export const deleteBooking = (id) => api.delete(`/bookings/${id}`);

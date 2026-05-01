@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getBookings } from '../services/api';
+import { getBookings, getTotalCount } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from '../components/Toast';
 import BookingTable from '../components/BookingTable';
@@ -21,6 +21,7 @@ const Dashboard = () => {
   const [bookings, setBookings] = useState([]);
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('asc');
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const fetchBookings = useCallback(async () => {
@@ -40,8 +41,13 @@ const Dashboard = () => {
 
   useEffect(() => { if (page === 'dashboard') fetchBookings(); }, [fetchBookings, page]);
 
+  // Fetch total count across all bookings including history
+  useEffect(() => {
+    getTotalCount().then(({ data }) => setTotalCount(data.total)).catch(() => {});
+  }, [bookings]); // refetch when bookings change
+
   const stats = {
-    total: bookings.length,
+    total: totalCount,
     paid: bookings.filter((b) => b.paid).length,
     sent: bookings.filter((b) => b.pdfSent).length,
     completed: bookings.filter((b) => b.completed).length,
