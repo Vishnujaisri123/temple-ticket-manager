@@ -75,17 +75,12 @@ const AddBookingForm = ({ onAdded }) => {
               <label>Phone *</label>
               <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', background: 'var(--bg)' }}>
                 <span style={{ padding: '0.5rem 0.6rem', background: '#f0e8e4', color: 'var(--primary)', fontWeight: 700, fontSize: '0.875rem', borderRight: '1.5px solid var(--border)', whiteSpace: 'nowrap' }}>+91</span>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={form.phone}
-                  onChange={handleChange}
-                  placeholder="10 digit number"
-                  maxLength={10}
-                  required
-                  style={{ border: 'none', background: 'transparent', padding: '0.5rem 0.65rem', fontSize: '0.875rem', width: '100%', outline: 'none' }}
-                />
+                <input type="tel" name="phone" value={form.phone} onChange={handleChange} placeholder="10 digit number" maxLength={10} required style={{ border: 'none', background: 'transparent', padding: '0.5rem 0.65rem', fontSize: '0.875rem', width: '100%', outline: 'none' }} />
               </div>
+            </div>
+            <div className="form-group">
+              <label>Gothram</label>
+              <GothramInput value={form.gothram} onChange={(val) => setForm({ ...form, gothram: val })} placeholder="Search gothram..." />
             </div>
             <div className="form-group">
               <label>Member 1 *</label>
@@ -94,14 +89,6 @@ const AddBookingForm = ({ onAdded }) => {
             <div className="form-group">
               <label>Member 2</label>
               <input type="text" name="member2" value={form.member2} onChange={handleChange} placeholder="Optional" />
-            </div>
-            <div className="form-group">
-              <label>Gothram</label>
-              <GothramInput
-                value={form.gothram}
-                onChange={(val) => setForm({ ...form, gothram: val })}
-                placeholder="Search gothram..."
-              />
             </div>
             <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
               <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
