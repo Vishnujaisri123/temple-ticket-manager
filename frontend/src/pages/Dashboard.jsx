@@ -50,41 +50,25 @@ const Dashboard = () => {
   return (
     <div className="app-layout">
       <nav className="navbar">
-        <div className="navbar-brand">
-          <span className="icon">🕌</span>
-          <div>
-            <h1>Temple Ticket Manager</h1>
-            <span>Sri Venkateswara Swami Temple, Vadapalli</span>
+        <div className="navbar-top">
+          <div className="navbar-brand">
+            <span className="icon">🕌</span>
+            <div>
+              <h1>Temple Ticket Manager</h1>
+              <span>Sri Venkateswara Swami Temple, Vadapalli</span>
+            </div>
           </div>
-        </div>
-        <div className="navbar-right">
-          {/* Page tabs in navbar */}
-          <div style={{ display: 'flex', gap: '0.25rem' }}>
-            <button
-              onClick={() => setPage('dashboard')}
-              style={{
-                padding: '0.35rem 0.9rem', borderRadius: '6px', border: 'none',
-                cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem',
-                background: page === 'dashboard' ? 'rgba(255,255,255,0.25)' : 'transparent',
-                color: '#fff', transition: 'background 0.2s',
-              }}
-            >
-              📋 Dashboard
-            </button>
-            <button
-              onClick={() => setPage('history')}
-              style={{
-                padding: '0.35rem 0.9rem', borderRadius: '6px', border: 'none',
-                cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem',
-                background: page === 'history' ? 'rgba(255,255,255,0.25)' : 'transparent',
-                color: '#fff', transition: 'background 0.2s',
-              }}
-            >
-              📜 History
-            </button>
-          </div>
-          <span className="user">👤 {username}</span>
           <button className="btn-logout" onClick={logout}>Logout</button>
+        </div>
+        <div className="navbar-bottom">
+          <div className="nav-tabs">
+            <button className={`nav-tab ${page === 'dashboard' ? 'active' : ''}`} onClick={() => setPage('dashboard')}>📋 Dashboard</button>
+            <button className={`nav-tab ${page === 'history' ? 'active' : ''}`} onClick={() => setPage('history')}>📜 History</button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span className="user">👤 {username}</span>
+            <button className="btn-logout btn-logout-desktop" onClick={logout}>Logout</button>
+          </div>
         </div>
       </nav>
 
