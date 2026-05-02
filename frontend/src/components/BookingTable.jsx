@@ -4,6 +4,7 @@ import { toast } from './Toast';
 import UploadCell from './UploadCell';
 import SendButton from './SendButton';
 import GothramInput from './GothramInput';
+import PrintButton from './PrintButton';
 
 const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN') : '—';
 
@@ -14,8 +15,26 @@ const isReminderDue = (visitDate) => {
   return diff === 2;
 };
 
+const PaymentSelect = ({ booking, onUpdate }) => (
+  <select
+    value={booking.paymentMethod || ''}
+    onChange={(e) => onUpdate(booking, 'paymentMethod', e.target.value)}
+    style={{
+      border: '1px solid var(--border)', borderRadius: '4px',
+      padding: '0.25rem 0.4rem', fontSize: '0.78rem',
+      background: booking.paymentMethod === 'phonepe' ? '#e8f4fd' : booking.paymentMethod === 'cash' ? '#e8f5e9' : '#fff',
+      color: 'var(--text)', cursor: 'pointer', width: '100%',
+    }}
+  >
+    <option value="">— Select —</option>
+    <option value="phonepe">📱 PhonePe</option>
+    <option value="cash">💵 Cash</option>
+  </select>
+);
+
 const BookingTable = ({ bookings, setBookings }) => {
   const [editing, setEditing] = useState({});
+  const [editingPhone, setEditingPhone] = useState({});
 
   const handleFieldChange = (id, field, value) => {
     setEditing((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
@@ -47,6 +66,15 @@ const BookingTable = ({ bookings, setBookings }) => {
       saveField(booking, field, val);
       setBookings((prev) => prev.map((b) => (b._id === booking._id ? { ...b, [field]: val } : b)));
     }
+  };
+
+  const handlePhoneSave = (booking) => {
+    const val = editingPhone[booking._id];
+    if (val !== undefined && val !== booking.phone) {
+      saveField(booking, 'phone', val);
+      setBookings((prev) => prev.map((b) => b._id === booking._id ? { ...b, phone: val } : b));
+    }
+    setEditingPhone((prev) => { const n = { ...prev }; delete n[booking._id]; return n; });
   };
 
   const handleDelete = async (id) => {
@@ -105,7 +133,8 @@ const BookingTable = ({ bookings, setBookings }) => {
           <span><strong>{reminderCount}</strong> booking(s) visit in 2 days — send reminders!</span>
         </div>
       )}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <PrintButton bookings={bookings} title="Dashboard Bookings" />
         <button className="btn btn-warning btn-sm" onClick={handleBulkSend}>📤 Bulk Send</button>
       </div>
 
@@ -117,7 +146,8 @@ const BookingTable = ({ bookings, setBookings }) => {
               <tr>
                 <th>#</th><th>Bookers Date</th><th>Booked Date</th><th>Phone</th>
                 <th>Member 1</th><th>Member 2</th><th>Gothram</th>
-                <th>✅ Done</th><th>📤 Sent</th><th>💰 Paid</th><th>📎 PDF</th><th>Actions</th>
+                <th>✅ Done</th><th>📤 Sent</th><th>💰 Paid</th>
+                <th>Payment</th><th>📎 PDF</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -133,11 +163,22 @@ const BookingTable = ({ bookings, setBookings }) => {
                     </div>
                   </td>
                   <td>
-                    <div className="editable-cell">
-                      <input type="tel" defaultValue={b.phone}
-                        onChange={(e) => handleFieldChange(b._id, 'phone', e.target.value)}
-                        onBlur={() => handleBlur(b, 'phone')} />
-                    </div>
+                    {editingPhone[b._id] !== undefined ? (
+                      <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                        <input type="tel" value={editingPhone[b._id]}
+                          onChange={(e) => setEditingPhone((prev) => ({ ...prev, [b._id]: e.target.value }))}
+                          style={{ border: '1.5px solid var(--primary)', borderRadius: '4px', padding: '0.25rem 0.4rem', fontSize: '0.82rem', width: '120px' }}
+                          maxLength={13} autoFocus />
+                        <button className="btn btn-sm btn-primary" style={{ padding: '0.2rem 0.5rem' }} onClick={() => handlePhoneSave(b)}>✓</button>
+                        <button className="btn btn-sm btn-outline" style={{ padding: '0.2rem 0.5rem' }} onClick={() => setEditingPhone((prev) => { const n = { ...prev }; delete n[b._id]; return n; })}>✕</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <span style={{ fontSize: '0.82rem' }}>{b.phone}</span>
+                        <button className="btn btn-sm btn-outline" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }}
+                          onClick={() => setEditingPhone((prev) => ({ ...prev, [b._id]: b.phone }))}>✏️</button>
+                      </div>
+                    )}
                   </td>
                   <td>
                     <div className="editable-cell">
@@ -161,6 +202,7 @@ const BookingTable = ({ bookings, setBookings }) => {
                   <td className="checkbox-cell"><input type="checkbox" checked={b.completed} onChange={() => handleCheckbox(b, 'completed')} /></td>
                   <td className="checkbox-cell"><input type="checkbox" checked={b.pdfSent} onChange={() => handleCheckbox(b, 'pdfSent')} /></td>
                   <td className="checkbox-cell"><input type="checkbox" checked={b.paid} onChange={() => handleCheckbox(b, 'paid')} /></td>
+                  <td><PaymentSelect booking={b} onUpdate={(bk, field, val) => { saveField(bk, field, val); setBookings((prev) => prev.map((x) => x._id === bk._id ? { ...x, [field]: val } : x)); }} /></td>
                   <td><UploadCell booking={b} onUploaded={handleUploaded} /></td>
                   <td>
                     <div className="row-actions">
@@ -194,7 +236,24 @@ const BookingTable = ({ bookings, setBookings }) => {
             <div className="booking-card-body">
               <div className="card-row">
                 <span className="card-label">📞 Phone</span>
-                <span className="card-value">{b.phone}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  {editingPhone[b._id] !== undefined ? (
+                    <>
+                      <input type="tel" value={editingPhone[b._id]}
+                        onChange={(e) => setEditingPhone((prev) => ({ ...prev, [b._id]: e.target.value }))}
+                        style={{ border: '1.5px solid var(--primary)', borderRadius: '4px', padding: '0.2rem 0.4rem', fontSize: '0.82rem', width: '110px' }}
+                        maxLength={13} />
+                      <button className="btn btn-sm btn-primary" style={{ padding: '0.15rem 0.4rem' }} onClick={() => handlePhoneSave(b)}>✓</button>
+                      <button className="btn btn-sm btn-outline" style={{ padding: '0.15rem 0.4rem' }} onClick={() => setEditingPhone((prev) => { const n = { ...prev }; delete n[b._id]; return n; })}>✕</button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="card-value">{b.phone}</span>
+                      <button className="btn btn-sm btn-outline" style={{ padding: '0.1rem 0.35rem', fontSize: '0.7rem' }}
+                        onClick={() => setEditingPhone((prev) => ({ ...prev, [b._id]: b.phone }))}>✏️</button>
+                    </>
+                  )}
+                </div>
               </div>
               <div className="card-row">
                 <span className="card-label">🏛️ Gothram</span>
@@ -203,6 +262,10 @@ const BookingTable = ({ bookings, setBookings }) => {
               <div className="card-row">
                 <span className="card-label">📅 Bookers Date</span>
                 <span className="card-value">{fmt(b.bookingDate)}</span>
+              </div>
+              <div className="card-row">
+                <span className="card-label">💳 Payment</span>
+                <PaymentSelect booking={b} onUpdate={(bk, field, val) => { saveField(bk, field, val); setBookings((prev) => prev.map((x) => x._id === bk._id ? { ...x, [field]: val } : x)); }} />
               </div>
               <div className="card-checkboxes">
                 <label className="card-checkbox-item">

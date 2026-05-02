@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getBookings, deleteBooking } from '../services/api';
+import { getBookings, deleteBooking, updateBooking } from '../services/api';
 import { toast } from '../components/Toast';
 import SendButton from '../components/SendButton';
 import UploadCell from '../components/UploadCell';
+import PrintButton from '../components/PrintButton';
 
 const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN') : '—';
 const fmtTime = (d) => d ? new Date(d).toLocaleString('en-IN', {
@@ -51,7 +52,21 @@ const History = () => {
     setSent((prev) => prev.map((b) => b._id === id ? { ...b, ...updatedBooking } : b));
   };
 
-  const handleSent = (updated) => {
+  const [editingPhone, setEditingPhone] = useState({});
+
+  const saveField = useCallback(async (id, field, value, type) => {
+    try {
+      const { data } = await updateBooking(id, { [field]: value });
+      if (type === 'completed') setCompleted((prev) => prev.map((b) => b._id === id ? data : b));
+      else setSent((prev) => prev.map((b) => b._id === id ? data : b));
+    } catch { toast('Failed to update', 'error'); }
+  }, []);
+
+  const handlePhoneSave = (booking, type) => {
+    const val = editingPhone[booking._id];
+    if (val !== undefined && val !== booking.phone) saveField(booking._id, 'phone', val, type);
+    setEditingPhone((prev) => { const n = { ...prev }; delete n[booking._id]; return n; });
+  };
     setCompleted((prev) => prev.filter((b) => b._id !== updated._id));
     setSent((prev) => {
       const exists = prev.find((b) => b._id === updated._id);
@@ -120,6 +135,9 @@ const History = () => {
         </div>
       ) : (
         <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
+            <PrintButton bookings={data} title={activeTab === 'completed' ? 'Completed & Paid' : 'Sent Tickets'} />
+          </div>
           {/* ── Desktop Table ── */}
           <div className="table-wrapper">
             <div className="table-scroll">
@@ -134,6 +152,7 @@ const History = () => {
                     <th>Member 2</th>
                     <th>Gothram</th>
                     <th>💰 Paid</th>
+                    <th>💳 Payment</th>
                     <th>✅ Done</th>
                     {activeTab === 'sent' && <th>📤 Sent At</th>}
                     <th>📎 PDF</th>
@@ -146,16 +165,38 @@ const History = () => {
                       <td><div className="serial-no">{b.serialNo}</div></td>
                       <td>{fmt(b.bookingDate)}</td>
                       <td>{fmt(b.visitDate)}</td>
-                      <td style={{ fontSize: '0.82rem' }}>{b.phone}</td>
+                      <td>
+                        {editingPhone[b._id] !== undefined ? (
+                          <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                            <input type="tel" value={editingPhone[b._id]}
+                              onChange={(e) => setEditingPhone((prev) => ({ ...prev, [b._id]: e.target.value }))}
+                              style={{ border: '1.5px solid var(--primary)', borderRadius: '4px', padding: '0.25rem 0.4rem', fontSize: '0.82rem', width: '120px' }}
+                              maxLength={13} autoFocus />
+                            <button className="btn btn-sm btn-primary" style={{ padding: '0.2rem 0.5rem' }} onClick={() => handlePhoneSave(b, activeTab)}>✓</button>
+                            <button className="btn btn-sm btn-outline" style={{ padding: '0.2rem 0.5rem' }} onClick={() => setEditingPhone((prev) => { const n = { ...prev }; delete n[b._id]; return n; })}>✕</button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <span style={{ fontSize: '0.82rem' }}>{b.phone}</span>
+                            <button className="btn btn-sm btn-outline" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }}
+                              onClick={() => setEditingPhone((prev) => ({ ...prev, [b._id]: b.phone }))}>✏️</button>
+                          </div>
+                        )}
+                      </td>
                       <td style={{ fontWeight: 600 }}>{b.member1}</td>
                       <td>{b.member2 || '—'}</td>
                       <td>{b.gothram || '—'}</td>
-                      <td className="checkbox-cell">
-                        <span style={{ color: b.paid ? 'var(--success)' : 'var(--danger)' }}>{b.paid ? '✅' : '❌'}</span>
+                      <td className="checkbox-cell"><span style={{ color: b.paid ? 'var(--success)' : 'var(--danger)' }}>{b.paid ? '✅' : '❌'}</span></td>
+                      <td>
+                        <select value={b.paymentMethod || ''}
+                          onChange={(e) => saveField(b._id, 'paymentMethod', e.target.value, activeTab)}
+                          style={{ border: '1px solid var(--border)', borderRadius: '4px', padding: '0.25rem 0.4rem', fontSize: '0.78rem', background: b.paymentMethod === 'phonepe' ? '#e8f4fd' : b.paymentMethod === 'cash' ? '#e8f5e9' : '#fff' }}>
+                          <option value="">— Select —</option>
+                          <option value="phonepe">📱 PhonePe</option>
+                          <option value="cash">💵 Cash</option>
+                        </select>
                       </td>
-                      <td className="checkbox-cell">
-                        <span style={{ color: b.completed ? 'var(--success)' : 'var(--danger)' }}>{b.completed ? '✅' : '❌'}</span>
-                      </td>
+                      <td className="checkbox-cell"><span style={{ color: b.completed ? 'var(--success)' : 'var(--danger)' }}>{b.completed ? '✅' : '❌'}</span></td>
                       {activeTab === 'sent' && (
                         <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
                           {b.sentAt ? <span style={{ color: 'var(--success)', fontWeight: 600 }}>📤 {fmtTime(b.sentAt)}</span> : '—'}
@@ -198,7 +239,24 @@ const History = () => {
                 <div className="booking-card-body">
                   <div className="card-row">
                     <span className="card-label">📞 Phone</span>
-                    <span className="card-value">{b.phone}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      {editingPhone[b._id] !== undefined ? (
+                        <>
+                          <input type="tel" value={editingPhone[b._id]}
+                            onChange={(e) => setEditingPhone((prev) => ({ ...prev, [b._id]: e.target.value }))}
+                            style={{ border: '1.5px solid var(--primary)', borderRadius: '4px', padding: '0.2rem 0.4rem', fontSize: '0.82rem', width: '110px' }}
+                            maxLength={13} />
+                          <button className="btn btn-sm btn-primary" style={{ padding: '0.15rem 0.4rem' }} onClick={() => handlePhoneSave(b, activeTab)}>✓</button>
+                          <button className="btn btn-sm btn-outline" style={{ padding: '0.15rem 0.4rem' }} onClick={() => setEditingPhone((prev) => { const n = { ...prev }; delete n[b._id]; return n; })}>✕</button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="card-value">{b.phone}</span>
+                          <button className="btn btn-sm btn-outline" style={{ padding: '0.1rem 0.35rem', fontSize: '0.7rem' }}
+                            onClick={() => setEditingPhone((prev) => ({ ...prev, [b._id]: b.phone }))}>✏️</button>
+                        </>
+                      )}
+                    </div>
                   </div>
                   {b.gothram && (
                     <div className="card-row">
@@ -213,6 +271,16 @@ const History = () => {
                   <div className="card-row">
                     <span className="card-label">💰 Paid</span>
                     <span className="card-value">{b.paid ? '✅ Yes' : '❌ No'}</span>
+                  </div>
+                  <div className="card-row">
+                    <span className="card-label">💳 Payment</span>
+                    <select value={b.paymentMethod || ''}
+                      onChange={(e) => saveField(b._id, 'paymentMethod', e.target.value, activeTab)}
+                      style={{ border: '1px solid var(--border)', borderRadius: '4px', padding: '0.25rem 0.4rem', fontSize: '0.78rem', background: b.paymentMethod === 'phonepe' ? '#e8f4fd' : b.paymentMethod === 'cash' ? '#e8f5e9' : '#fff' }}>
+                      <option value="">— Select —</option>
+                      <option value="phonepe">📱 PhonePe</option>
+                      <option value="cash">💵 Cash</option>
+                    </select>
                   </div>
                   <div className="card-row">
                     <span className="card-label">✅ Completed</span>

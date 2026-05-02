@@ -12,6 +12,7 @@ const bookingSchema = new mongoose.Schema(
     completed: { type: Boolean, default: false },
     pdfSent: { type: Boolean, default: false },
     paid: { type: Boolean, default: false },
+    paymentMethod: { type: String, enum: ['', 'phonepe', 'cash'], default: '' },
     pdfUrl: { type: String, default: '' },
     localPdfUrl: { type: String, default: '' },
     localPdfPath: { type: String, default: '' },
