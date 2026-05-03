@@ -148,10 +148,10 @@ const getStats = async (req, res) => {
     let totalProfit = 0;
     let phonepeAmount = 0;
     let cashAmount = 0;
-    let paidCount = 0;
     let sentCount = 0;
     
     const adminStats = {};
+    const dailyStats = {};
 
     allBookings.forEach(b => {
       const amt = b.amount || 200;
@@ -164,6 +164,23 @@ const getStats = async (req, res) => {
       
       if (b.paymentMethod === 'phonepe') phonepeAmount += amt;
       if (b.paymentMethod === 'cash') cashAmount += amt;
+      
+      const dateKey = b.bookingDate ? b.bookingDate.toISOString().split('T')[0] : 'Unknown';
+      if (!dailyStats[dateKey]) {
+        dailyStats[dateKey] = {
+          date: dateKey,
+          totalAmount: 0,
+          totalProfit: 0,
+          phonepeAmount: 0,
+          cashAmount: 0,
+          count: 0
+        };
+      }
+      dailyStats[dateKey].count++;
+      dailyStats[dateKey].totalAmount += amt;
+      dailyStats[dateKey].totalProfit += prf;
+      if (b.paymentMethod === 'phonepe') dailyStats[dateKey].phonepeAmount += amt;
+      if (b.paymentMethod === 'cash') dailyStats[dateKey].cashAmount += amt;
       
       if (b.createdBy) {
         const adminId = b.createdBy._id.toString();
@@ -191,7 +208,8 @@ const getStats = async (req, res) => {
         sentCount,
         count: allBookings.length
       },
-      admins: Object.values(adminStats)
+      admins: Object.values(adminStats),
+      daily: Object.values(dailyStats).sort((a, b) => new Date(b.date) - new Date(a.date))
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

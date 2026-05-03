@@ -67,7 +67,7 @@ const Dashboard = () => {
         toast.success(data.message);
         fetchBookings();
         getStats().then(({ data }) => setStats(data)).catch(() => {});
-      } catch (err) {
+      } catch {
         toast.error('Failed to recover data');
       }
     }
@@ -90,6 +90,7 @@ const Dashboard = () => {
           <div className="nav-tabs">
             <button className={`nav-tab ${page === 'dashboard' ? 'active' : ''}`} onClick={() => setPage('dashboard')}>📋 Dashboard</button>
             <button className={`nav-tab ${page === 'history' ? 'active' : ''}`} onClick={() => setPage('history')}>📜 History</button>
+            <button className={`nav-tab ${page === 'daily' ? 'active' : ''}`} onClick={() => setPage('daily')}>📊 Daily Report</button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button className="btn-mode" onClick={() => setDarkMode(!darkMode)}>
@@ -104,6 +105,46 @@ const Dashboard = () => {
       {page === 'history' ? (
         <main className="main-content">
           <History />
+        </main>
+      ) : page === 'daily' ? (
+        <main className="main-content">
+          <div className="dashboard-header">
+            <div className="dashboard-title">
+              <h2>Daily Financial Report</h2>
+              <p>Payment breakdown based on the date tickets were entered</p>
+            </div>
+          </div>
+          {stats.daily && stats.daily.length > 0 ? (
+            <div className="daily-grid">
+              {stats.daily.map(day => (
+                <div key={day.date} className="admin-stat-card">
+                  <div className="admin-name" style={{ fontSize: '1.1rem' }}>📅 {new Date(day.date).toLocaleDateString('en-GB')}</div>
+                  <div className="admin-details">
+                    <span style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>🎟️ {day.count} tickets entered</span>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                      <div className="stat-card money" style={{ padding: '0.5rem', minWidth: '0' }}>
+                        <div className="stat-info"><div className="label">Amount</div><div className="value" style={{ fontSize: '1rem' }}>₹{day.totalAmount}</div></div>
+                      </div>
+                      <div className="stat-card profit" style={{ padding: '0.5rem', minWidth: '0' }}>
+                        <div className="stat-info"><div className="label">Profit</div><div className="value" style={{ fontSize: '1rem' }}>₹{day.totalProfit}</div></div>
+                      </div>
+                      <div className="stat-card phonepe" style={{ padding: '0.5rem', minWidth: '0' }}>
+                        <div className="stat-info"><div className="label">PhonePe</div><div className="value" style={{ fontSize: '1rem' }}>₹{day.phonepeAmount}</div></div>
+                      </div>
+                      <div className="stat-card cash" style={{ padding: '0.5rem', minWidth: '0' }}>
+                        <div className="stat-info"><div className="label">Cash</div><div className="value" style={{ fontSize: '1rem' }}>₹{day.cashAmount}</div></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <div className="icon">📊</div>
+              <p>No daily data available</p>
+            </div>
+          )}
         </main>
       ) : (
         <main className="main-content">

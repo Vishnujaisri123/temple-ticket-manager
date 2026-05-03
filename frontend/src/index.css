@@ -234,6 +234,7 @@ body {
 }
 .admin-performance h3 { font-size: 1rem; color: var(--primary); margin-bottom: 1rem; }
 .admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+.daily-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
 .admin-stat-card {
   padding: 1rem; border-radius: 8px; background: var(--bg);
   border: 1px solid var(--border); transition: transform 0.2s;
