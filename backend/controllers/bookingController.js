@@ -217,11 +217,39 @@ const getStats = async (req, res) => {
 };
 const claimOrphans = async (req, res) => {
   try {
+    const totalBookings = await Booking.countDocuments();
+    const myBookings = await Booking.countDocuments({ createdBy: req.admin.id });
+    
+    // Find bookings that do NOT have a valid ObjectId for createdBy
+    // We can just find all bookings where createdBy is NOT req.admin.id, 
+    // but we shouldn't steal from other valid admins.
+    // Let's just find bookings where createdBy is null or missing.
+    const orphans = await Booking.find({ $or: [{ createdBy: null }, { createdBy: { $exists: false } }] });
+    
+    if (orphans.length === 0) {
+      // Maybe they don't have createdBy field but they don't match the query?
+      // Let's try to find bookings that don't belong to anyone in the Admin collection.
+      const validAdmins = await Admin.find().select('_id');
+      const validAdminIds = validAdmins.map(a => a._id);
+      
+      const invalidBookings = await Booking.find({ createdBy: { $nin: validAdminIds } });
+      
+      if (invalidBookings.length > 0) {
+        const result = await Booking.updateMany(
+          { createdBy: { $nin: validAdminIds } },
+          { $set: { createdBy: req.admin.id } }
+        );
+        return res.json({ message: `Assigned ${result.modifiedCount} unowned bookings to your account. (Total in DB: ${totalBookings})` });
+      }
+
+      return res.json({ message: `No orphan bookings found. You own ${myBookings} out of ${totalBookings} total bookings.` });
+    }
+
     const result = await Booking.updateMany(
-      { $or: [{ createdBy: null }, { createdBy: { $exists: false } }] },
+      { _id: { $in: orphans.map(o => o._id) } },
       { $set: { createdBy: req.admin.id } }
     );
-    res.json({ message: `Assigned ${result.modifiedCount} orphan bookings to your account` });
+    res.json({ message: `Assigned ${result.modifiedCount} orphan bookings to your account. (Total: ${totalBookings})` });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
