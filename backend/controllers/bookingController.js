@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const Booking = require('../models/Booking');
+const Admin = require('../models/Admin');
 const { uploadToCloudinary } = require('../config/cloudinary');
 
 const uploadDir = path.join(__dirname, '..', 'uploads');
@@ -46,7 +47,8 @@ const getAll = async (req, res) => {
 };
 
 const create = async (req, res) => {
-  const booking = await Booking.create(req.body);
+  const data = { ...req.body, createdBy: req.admin.id };
+  const booking = await Booking.create(data);
   res.status(201).json(booking);
 };
 
@@ -132,4 +134,56 @@ const getTotalCount = async (req, res) => {
   res.json({ total });
 };
 
-module.exports = { getAll, create, update, remove, uploadPdf, getReminderBookings, getTotalCount };
+const getStats = async (req, res) => {
+  try {
+    const allBookings = await Booking.find().populate('createdBy', 'username');
+    
+    let totalAmount = 0;
+    let totalProfit = 0;
+    let phonepeAmount = 0;
+    let cashAmount = 0;
+    
+    const adminStats = {};
+
+    allBookings.forEach(b => {
+      const amt = b.amount || 200;
+      const prf = b.profit || 50;
+      
+      totalAmount += amt;
+      totalProfit += prf;
+      
+      if (b.paymentMethod === 'phonepe') phonepeAmount += amt;
+      if (b.paymentMethod === 'cash') cashAmount += amt;
+      
+      if (b.createdBy) {
+        const adminId = b.createdBy._id.toString();
+        if (!adminStats[adminId]) {
+          adminStats[adminId] = {
+            username: b.createdBy.username,
+            count: 0,
+            amount: 0,
+            profit: 0
+          };
+        }
+        adminStats[adminId].count += 1;
+        adminStats[adminId].amount += amt;
+        adminStats[adminId].profit += prf;
+      }
+    });
+
+    res.json({
+      overall: {
+        totalAmount,
+        totalProfit,
+        phonepeAmount,
+        cashAmount,
+        count: allBookings.length
+      },
+      admins: Object.values(adminStats)
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+module.exports = { getAll, create, update, remove, uploadPdf, getReminderBookings, getTotalCount, getStats };

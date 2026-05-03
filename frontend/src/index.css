@@ -183,6 +183,29 @@ body {
 .stat-info .label { font-size: 0.72rem; color: var(--text-muted); }
 .stat-info .value { font-size: 1.3rem; font-weight: 700; color: var(--primary); }
 
+/* ── Financial & Admin Stats ── */
+.financial-stats { margin-top: 0.5rem; }
+.stat-card.money { border-left: 4px solid #fbc02d; }
+.stat-card.profit { border-left: 4px solid var(--success); }
+.stat-card.phonepe { border-left: 4px solid #004dcf; }
+.stat-card.cash { border-left: 4px solid #2e7d32; }
+
+.admin-performance {
+  background: var(--surface); border-radius: 12px;
+  padding: 1.25rem; margin-bottom: 1.5rem;
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.admin-performance h3 { font-size: 1rem; color: var(--primary); margin-bottom: 1rem; }
+.admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+.admin-stat-card {
+  padding: 1rem; border-radius: 8px; background: var(--bg);
+  border: 1px solid var(--border); transition: transform 0.2s;
+}
+.admin-stat-card:hover { transform: translateY(-3px); }
+.admin-name { font-weight: 700; color: var(--primary); margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+.admin-details { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; }
+.profit-text { color: var(--success); font-weight: 600; }
+
 /* ── Table (desktop) ── */
 .table-wrapper {
   background: var(--surface); border-radius: 12px;

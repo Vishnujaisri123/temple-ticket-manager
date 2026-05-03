@@ -8,6 +8,7 @@ const {
 
 router.use(protect);
 
+router.get('/stats', getStats);
 router.get('/count', getTotalCount);
 router.get('/reminders', getReminderBookings);
 router.get('/', getAll);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getBookings, getTotalCount } from '../services/api';
+import { getBookings, getStats } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from '../components/Toast';
 import BookingTable from '../components/BookingTable';
@@ -21,7 +21,7 @@ const Dashboard = () => {
   const [bookings, setBookings] = useState([]);
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('asc');
-  const [totalCount, setTotalCount] = useState(0);
+  const [stats, setStats] = useState({ overall: {}, admins: [] });
   const [loading, setLoading] = useState(true);
 
   const fetchBookings = useCallback(async () => {
@@ -46,17 +46,14 @@ const Dashboard = () => {
     }
   }, [fetchBookings, page]);
 
-  // Fetch total count across all bookings including history
+  // Fetch total count and financial stats
   useEffect(() => {
-    getTotalCount().then(({ data }) => setTotalCount(data.total)).catch(() => {});
+    getStats().then(({ data }) => {
+      setStats(data);
+    }).catch(() => {});
   }, [bookings]); // refetch when bookings change
 
-  const stats = {
-    total: totalCount,
-    paid: bookings.filter((b) => b.paid).length,
-    sent: bookings.filter((b) => b.pdfSent).length,
-    completed: bookings.filter((b) => b.completed).length,
-  };
+
 
   return (
     <div className="app-layout">
@@ -102,24 +99,57 @@ const Dashboard = () => {
             </div>
           </div>
 
+          <div className="stats-bar financial-stats">
+            <div className="stat-card money">
+              <span className="stat-icon">💰</span>
+              <div className="stat-info"><div className="label">Total Amount</div><div className="value">₹{stats.overall.totalAmount || 0}</div></div>
+            </div>
+            <div className="stat-card profit">
+              <span className="stat-icon">📈</span>
+              <div className="stat-info"><div className="label">Total Profit</div><div className="value">₹{stats.overall.totalProfit || 0}</div></div>
+            </div>
+            <div className="stat-card phonepe">
+              <span className="stat-icon">📱</span>
+              <div className="stat-info"><div className="label">PhonePe</div><div className="value">₹{stats.overall.phonepeAmount || 0}</div></div>
+            </div>
+            <div className="stat-card cash">
+              <span className="stat-icon">💵</span>
+              <div className="stat-info"><div className="label">Cash</div><div className="value">₹{stats.overall.cashAmount || 0}</div></div>
+            </div>
+          </div>
+
           <div className="stats-bar">
             <div className="stat-card">
               <span className="stat-icon">📋</span>
-              <div className="stat-info"><div className="label">Total</div><div className="value">{stats.total}</div></div>
-            </div>
-            <div className="stat-card">
-              <span className="stat-icon">💰</span>
-              <div className="stat-info"><div className="label">Paid</div><div className="value">{stats.paid}</div></div>
-            </div>
-            <div className="stat-card">
-              <span className="stat-icon">📤</span>
-              <div className="stat-info"><div className="label">Sent</div><div className="value">{stats.sent}</div></div>
+              <div className="stat-info"><div className="label">Total Bookings</div><div className="value">{stats.overall.count || 0}</div></div>
             </div>
             <div className="stat-card">
               <span className="stat-icon">✅</span>
-              <div className="stat-info"><div className="label">Completed</div><div className="value">{stats.completed}</div></div>
+              <div className="stat-info"><div className="label">Paid</div><div className="value">{bookings.filter((b) => b.paid).length}</div></div>
+            </div>
+            <div className="stat-card">
+              <span className="stat-icon">📤</span>
+              <div className="stat-info"><div className="label">Sent</div><div className="value">{bookings.filter((b) => b.pdfSent).length}</div></div>
             </div>
           </div>
+
+          {stats.admins && stats.admins.length > 0 && (
+            <div className="admin-performance">
+              <h3>👤 Admin Performance</h3>
+              <div className="admin-grid">
+                {stats.admins.map(a => (
+                  <div key={a.username} className="admin-stat-card">
+                    <div className="admin-name">{a.username}</div>
+                    <div className="admin-details">
+                      <span>🎟️ {a.count} tickets</span>
+                      <span>💰 ₹{a.amount}</span>
+                      <span className="profit-text">📈 ₹{a.profit} profit</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <AddBookingForm onAdded={(b) => setBookings((prev) => [b, ...prev])} />
 
