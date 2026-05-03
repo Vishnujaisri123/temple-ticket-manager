@@ -3,7 +3,7 @@ const router = express.Router();
 const protect = require('../middleware/auth');
 const { upload } = require('../config/cloudinary');
 const {
-  getAll, create, update, remove, uploadPdf, getReminderBookings, getTotalCount,
+  getAll, create, update, remove, uploadPdf, getReminderBookings, getTotalCount, getStats,
 } = require('../controllers/bookingController');
 
 router.use(protect);
