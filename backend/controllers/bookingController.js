@@ -9,7 +9,7 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const getAll = async (req, res) => {
   const { status, sort } = req.query;
-  let filter = {};
+  let filter = { createdBy: req.admin.id };
 
   if (status === 'paid') {
     filter.paid = true;
@@ -56,15 +56,17 @@ const create = async (req, res) => {
 };
 
 const update = async (req, res) => {
-  const booking = await Booking.findByIdAndUpdate(req.params.id, req.body, {
-    new: true, runValidators: true,
-  });
+  const booking = await Booking.findOneAndUpdate(
+    { _id: req.params.id, createdBy: req.admin.id },
+    req.body,
+    { new: true, runValidators: true }
+  );
   if (!booking) return res.status(404).json({ message: 'Booking not found' });
   res.json(booking);
 };
 
 const remove = async (req, res) => {
-  const booking = await Booking.findByIdAndDelete(req.params.id);
+  const booking = await Booking.findOneAndDelete({ _id: req.params.id, createdBy: req.admin.id });
   if (!booking) return res.status(404).json({ message: 'Booking not found' });
   if (booking.localPdfPath && fs.existsSync(booking.localPdfPath))
     fs.unlinkSync(booking.localPdfPath);
@@ -126,6 +128,7 @@ const getReminderBookings = async (req, res) => {
   const start = new Date(target.setHours(0, 0, 0, 0));
   const end = new Date(target.setHours(23, 59, 59, 999));
   const bookings = await Booking.find({
+    createdBy: req.admin.id,
     visitDate: { $gte: start, $lte: end },
     reminderSent: false,
   });
@@ -133,13 +136,13 @@ const getReminderBookings = async (req, res) => {
 };
 
 const getTotalCount = async (req, res) => {
-  const total = await Booking.countDocuments();
+  const total = await Booking.countDocuments({ createdBy: req.admin.id });
   res.json({ total });
 };
 
 const getStats = async (req, res) => {
   try {
-    const allBookings = await Booking.find().populate('createdBy', 'username');
+    const allBookings = await Booking.find({ createdBy: req.admin.id }).populate('createdBy', 'username');
     
     let totalAmount = 0;
     let totalProfit = 0;
