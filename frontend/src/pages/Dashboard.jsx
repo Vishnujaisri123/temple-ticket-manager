@@ -135,11 +135,11 @@ const Dashboard = () => {
             </div>
             <div className="stat-card">
               <span className="stat-icon">✅</span>
-              <div className="stat-info"><div className="label">Paid</div><div className="value">{bookings.filter((b) => b.paid).length}</div></div>
+              <div className="stat-info"><div className="label">Paid (Total)</div><div className="value">{stats.overall.paidCount || bookings.filter((b) => b.paid).length}</div></div>
             </div>
             <div className="stat-card">
               <span className="stat-icon">📤</span>
-              <div className="stat-info"><div className="label">Sent</div><div className="value">{bookings.filter((b) => b.pdfSent).length}</div></div>
+              <div className="stat-info"><div className="label">Sent (Total)</div><div className="value">{stats.overall.sentCount || bookings.filter((b) => b.pdfSent).length}</div></div>
             </div>
           </div>
 

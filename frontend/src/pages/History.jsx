@@ -179,7 +179,7 @@ const History = () => {
                 </thead>
                 <tbody>
                   {data.map((b) => (
-                    <tr key={b._id} style={{ background: activeTab === 'sent' ? '#f0fff4' : '' }}>
+                    <tr key={b._id} className={activeTab === 'sent' ? 'sent-row' : ''}>
                       <td><div className="serial-no">{b.serialNo}</div></td>
                       <td>{fmt(b.bookingDate)}</td>
                       <td>{fmt(b.visitDate)}</td>
@@ -213,7 +213,7 @@ const History = () => {
           {/* Mobile Cards */}
           <div className="booking-cards">
             {data.map((b) => (
-              <div key={b._id} className="booking-card" style={{ background: activeTab === 'sent' ? '#f0fff4' : '' }}>
+              <div key={b._id} className={`booking-card${activeTab === 'sent' ? ' sent-card' : ''}`}>
                 <div className="booking-card-header">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                     <div className="card-serial">{b.serialNo}</div>

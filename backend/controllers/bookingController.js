@@ -145,6 +145,8 @@ const getStats = async (req, res) => {
     let totalProfit = 0;
     let phonepeAmount = 0;
     let cashAmount = 0;
+    let paidCount = 0;
+    let sentCount = 0;
     
     const adminStats = {};
 
@@ -154,6 +156,8 @@ const getStats = async (req, res) => {
       
       totalAmount += amt;
       totalProfit += prf;
+      if (b.paid) paidCount++;
+      if (b.pdfSent) sentCount++;
       
       if (b.paymentMethod === 'phonepe') phonepeAmount += amt;
       if (b.paymentMethod === 'cash') cashAmount += amt;
@@ -180,6 +184,8 @@ const getStats = async (req, res) => {
         totalProfit,
         phonepeAmount,
         cashAmount,
+        paidCount,
+        sentCount,
         count: allBookings.length
       },
       admins: Object.values(adminStats)
