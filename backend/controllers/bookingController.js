@@ -41,9 +41,9 @@ const getAll = async (req, res) => {
     filter.$nor = [{ completed: true, paid: true }];
   }
 
-  let sortObj = { visitDate: sort === 'asc' ? 1 : -1 };
+  let sortObj = { visitDate: sort === 'asc' ? 1 : -1, phone: 1 };
   if (sort === 'phone') {
-    sortObj = { phone: 1, visitDate: -1 };
+    sortObj = { phone: 1, visitDate: 1 };
   }
   const bookings = await Booking.find(filter).sort(sortObj);
   res.json(bookings);

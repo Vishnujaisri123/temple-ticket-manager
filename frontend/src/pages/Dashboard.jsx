@@ -23,6 +23,12 @@ const Dashboard = () => {
   const [sort, setSort] = useState('asc');
   const [stats, setStats] = useState({ overall: {}, admins: [] });
   const [loading, setLoading] = useState(true);
+  const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    localStorage.setItem('darkMode', darkMode);
+  }, [darkMode]);
 
   const fetchBookings = useCallback(async () => {
     setLoading(true);
@@ -74,6 +80,9 @@ const Dashboard = () => {
             <button className={`nav-tab ${page === 'history' ? 'active' : ''}`} onClick={() => setPage('history')}>📜 History</button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button className="btn-mode" onClick={() => setDarkMode(!darkMode)}>
+              {darkMode ? '☀️' : '🌙'}
+            </button>
             <span className="user">👤 {username}</span>
             <button className="btn-logout btn-logout-desktop" onClick={logout}>Logout</button>
           </div>

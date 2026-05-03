@@ -17,6 +17,18 @@
   --radius: 8px;
 }
 
+.dark {
+  --primary: #d35400;
+  --primary-dark: #a04000;
+  --primary-light: #2c1a11;
+  --bg: #121212;
+  --surface: #1e1e1e;
+  --border: #333333;
+  --text: #e0e0e0;
+  --text-muted: #a0a0a0;
+  --shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+
 body {
   font-family: 'Segoe UI', system-ui, sans-serif;
   background: var(--bg);
@@ -119,6 +131,15 @@ body {
   font-size: 0.75rem; cursor: pointer; white-space: nowrap; flex-shrink: 0;
 }
 .btn-logout:hover { background: rgba(255,255,255,0.25); }
+
+.btn-mode {
+  background: rgba(255,255,255,0.15); color: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; cursor: pointer; transition: all 0.2s;
+}
+.btn-mode:hover { background: rgba(255,255,255,0.25); transform: scale(1.1); }
 
 /* Desktop navbar — single row */
 @media (min-width: 769px) {
