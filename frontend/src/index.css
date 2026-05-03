@@ -37,6 +37,19 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+/* ── Global dark mode form element overrides ── */
+.dark input,
+.dark select,
+.dark textarea {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
 /* ── Auth ── */
 .auth-page {
   min-height: 100vh;
@@ -64,9 +77,11 @@ body {
 .form-group input {
   width: 100%; padding: 0.7rem 0.9rem;
   border: 1.5px solid var(--border); border-radius: var(--radius);
-  font-size: 1rem; transition: border-color 0.2s; background: var(--bg);
+  font-size: 1rem; transition: border-color 0.2s;
+  background: var(--surface); color: var(--text);
 }
-.form-group input:focus { outline: none; border-color: var(--primary); }
+.form-group input:focus { outline: none; border-color: var(--primary); background: var(--surface); }
+.form-group input::placeholder { color: var(--text-muted); }
 
 /* ── Buttons ── */
 .btn {
@@ -188,8 +203,9 @@ body {
 
 .sort-select {
   padding: 0.4rem 0.7rem; border: 1.5px solid var(--border);
-  border-radius: var(--radius); font-size: 0.85rem; background: var(--surface);
-  cursor: pointer; color: var(--text);
+  border-radius: var(--radius); font-size: 0.85rem;
+  background: var(--surface); cursor: pointer;
+  color: var(--text);
 }
 
 /* ── Stats Bar ── */
@@ -320,10 +336,10 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
 
 /* ── Reminder Banner ── */
 .reminder-banner {
-  background: #fff3e0; border: 1px solid #ffcc02;
+  background: var(--surface); border: 1px solid var(--accent);
   border-radius: var(--radius); padding: 0.65rem 0.9rem;
   margin-bottom: 1rem; display: flex; align-items: center;
-  gap: 0.6rem; font-size: 0.85rem;
+  gap: 0.6rem; font-size: 0.85rem; color: var(--text);
 }
 
 /* ── Empty State ── */

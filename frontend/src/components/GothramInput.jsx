@@ -118,10 +118,10 @@ const GothramInput = ({ value, onChange, onBlur, placeholder = 'Search gothram..
       {open && suggestions.length > 0 && (
         <ul style={{
           position: 'absolute', top: '100%', left: 0, right: 0,
-          background: '#fff', border: '1.5px solid var(--primary)',
+          background: 'var(--surface)', border: '1.5px solid var(--primary)',
           borderRadius: '0 0 8px 8px', maxHeight: '180px', overflowY: 'auto',
           zIndex: 1000, margin: 0, padding: 0, listStyle: 'none',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
         }}>
           {suggestions.map((g, i) => (
             <li
@@ -129,10 +129,11 @@ const GothramInput = ({ value, onChange, onBlur, placeholder = 'Search gothram..
               onMouseDown={() => handleSelect(g)}
               style={{
                 padding: '0.5rem 0.75rem', cursor: 'pointer', fontSize: '0.875rem',
-                background: i === highlighted ? 'var(--primary-light)' : '#fff',
-                color: i === highlighted ? 'var(--primary)' : 'var(--text)',
+                background: i === highlighted ? 'var(--primary)' : 'var(--surface)',
+                color: i === highlighted ? '#fff' : 'var(--text)',
                 fontWeight: i === highlighted ? 600 : 400,
                 borderBottom: i < suggestions.length - 1 ? '1px solid var(--border)' : 'none',
+                transition: 'background 0.15s',
               }}
             >
               {g}
