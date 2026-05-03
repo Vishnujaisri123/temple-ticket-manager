@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getBookings, getStats } from '../services/api';
+import { getBookings, getStats, claimOrphans } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from '../components/Toast';
 import BookingTable from '../components/BookingTable';
@@ -60,6 +60,18 @@ const Dashboard = () => {
   }, [bookings]); // refetch when bookings change
 
 
+  const handleClaimOrphans = async () => {
+    if (window.confirm('Do you want to recover old bookings that are not visible? This will assign them to your account.')) {
+      try {
+        const { data } = await claimOrphans();
+        toast.success(data.message);
+        fetchBookings();
+        getStats().then(({ data }) => setStats(data)).catch(() => {});
+      } catch (err) {
+        toast.error('Failed to recover data');
+      }
+    }
+  };
 
   return (
     <div className="app-layout">
@@ -101,6 +113,9 @@ const Dashboard = () => {
               <p>Manage all temple ticket bookings</p>
             </div>
             <div className="controls">
+              <button className="btn btn-warning btn-sm" onClick={handleClaimOrphans} style={{ gap: '0.4rem' }}>
+                🔄 Recover Old Data
+              </button>
               <select className="sort-select" value={sort} onChange={(e) => setSort(e.target.value)}>
                 <option value="asc">Visit Date ↑</option>
                 <option value="desc">Visit Date ↓</option>
