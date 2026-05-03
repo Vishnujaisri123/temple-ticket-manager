@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { login as apiLogin, seedAdmin } from '../services/api';
 import axios from 'axios';
 
 const Login = () => {

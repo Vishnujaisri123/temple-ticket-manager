@@ -39,7 +39,12 @@ const Dashboard = () => {
     }
   }, [filter, sort]);
 
-  useEffect(() => { if (page === 'dashboard') fetchBookings(); }, [fetchBookings, page]);
+  useEffect(() => {
+    if (page === 'dashboard') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchBookings();
+    }
+  }, [fetchBookings, page]);
 
   // Fetch total count across all bookings including history
   useEffect(() => {

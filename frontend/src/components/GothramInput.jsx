@@ -40,6 +40,7 @@ const GothramInput = ({ value, onChange, onBlur, placeholder = 'Search gothram..
   const wrapperRef = useRef();
 
   // Sync external value changes
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setQuery(value || ''); }, [value]);
 
   // Close on outside click
