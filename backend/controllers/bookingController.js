@@ -197,5 +197,16 @@ const getStats = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+const claimOrphans = async (req, res) => {
+  try {
+    const result = await Booking.updateMany(
+      { $or: [{ createdBy: null }, { createdBy: { $exists: false } }] },
+      { $set: { createdBy: req.admin.id } }
+    );
+    res.json({ message: `Assigned ${result.modifiedCount} orphan bookings to your account` });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
 
-module.exports = { getAll, create, update, remove, uploadPdf, getReminderBookings, getTotalCount, getStats };
+module.exports = { getAll, create, update, remove, uploadPdf, getReminderBookings, getTotalCount, getStats, claimOrphans };
