@@ -1,22 +1,35 @@
 const PrintButton = ({ bookings, title = 'All Bookings' }) => {
   const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN') : '—';
+  const isPujaPersons = title === 'Puja Persons';
 
   const handlePrint = () => {
-    const rows = bookings.map((b, i) => `
-      <tr style="background:${i % 2 === 0 ? '#fff' : '#fdf6f0'}">
+    const rows = bookings.map((b, i) => {
+      const baseRow = `
         <td>${b.serialNo}</td>
         <td>${fmt(b.bookingDate)}</td>
         <td>${fmt(b.visitDate)}</td>
         <td>${b.phone}</td>
+        <td>${b.gothram || '—'}</td>
         <td>${b.member1}</td>
         <td>${b.member2 || '—'}</td>
-        <td>${b.gothram || '—'}</td>
         <td style="text-align:center">${b.paid ? '✅' : '❌'}</td>
         <td style="text-align:center">${b.paymentMethod === 'phonepe' ? '📱 PhonePe' : b.paymentMethod === 'cash' ? '💵 Cash' : '—'}</td>
         <td style="text-align:center">${b.completed ? '✅' : '❌'}</td>
         <td style="text-align:center">${b.pdfSent ? '✅' : '❌'}</td>
-      </tr>
-    `).join('');
+      `;
+      
+      const pujaColumns = isPujaPersons ? `
+        <td style="text-align:center">${b.pujaGrocery ? '✅' : '❌'}</td>
+        <td style="text-align:center">${b.pujaGroceryPaymentMethod === 'phonepe' ? '📱 PhonePe' : b.pujaGroceryPaymentMethod === 'cash' ? '💵 Cash' : '—'}</td>
+        <td style="text-align:center">${b.pujaGroceryDone ? '✅' : '❌'}</td>
+      ` : '';
+      
+      return `
+        <tr style="background:${i % 2 === 0 ? '#fff' : '#fdf6f0'}">
+          ${baseRow}${pujaColumns}
+        </tr>
+      `;
+    }).join('');
 
     const html = `
       <!DOCTYPE html>
@@ -58,13 +71,17 @@ const PrintButton = ({ bookings, title = 'All Bookings' }) => {
               <th>Bookers Date</th>
               <th>Booked Date</th>
               <th>Phone</th>
+              <th>Gothram</th>
               <th>Member 1</th>
               <th>Member 2</th>
-              <th>Gothram</th>
               <th>Paid</th>
               <th>Payment</th>
               <th>Done</th>
               <th>Sent</th>
+              ${isPujaPersons ? '<th>Puja Grocery</th><th>Puja Payment</th><th>Puja Done</th>' : ''}
+            </tr>
+          </thead>
+              ${isPujaPersons ? '<th>Puja Grocery</th><th>Puja Payment</th><th>Puja Done</th>' : ''}
             </tr>
           </thead>
           <tbody>${rows}</tbody>

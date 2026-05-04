@@ -17,6 +17,11 @@ const AddBookingForm = ({ onAdded }) => {
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
 
+  // Calculate next month for minimum date
+  const nextMonth = new Date();
+  nextMonth.setMonth(nextMonth.getMonth() + 1);
+  const minVisitDate = nextMonth.toISOString().split('T')[0];
+
   const handleChange = (e) => {
     if (e.target.name === 'phone') {
       // Only allow digits, max 10
@@ -69,7 +74,7 @@ const AddBookingForm = ({ onAdded }) => {
             </div>
             <div className="form-group">
               <label>Booked Date *</label>
-              <input type="date" name="visitDate" value={form.visitDate} onChange={handleChange} required />
+              <input type="date" name="visitDate" value={form.visitDate} onChange={handleChange} min={minVisitDate} required />
             </div>
             <div className="form-group">
               <label>Phone *</label>

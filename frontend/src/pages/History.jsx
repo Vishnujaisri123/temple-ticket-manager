@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getBookings, deleteBooking, updateBooking } from '../services/api';
+import { getBookings, deleteBooking, updateBooking, claimOrphans } from '../services/api';
 import { toast } from '../components/Toast';
 import SendButton from '../components/SendButton';
 import UploadCell from '../components/UploadCell';
@@ -43,6 +43,14 @@ const History = () => {
     fetchHistory();
   }, [fetchHistory]);
 
+  useEffect(() => {
+    const handleStatsUpdated = () => {
+      fetchHistory();
+    };
+    window.addEventListener('statsUpdated', handleStatsUpdated);
+    return () => window.removeEventListener('statsUpdated', handleStatsUpdated);
+  }, [fetchHistory]);
+
   const saveField = useCallback(async (id, field, value, type) => {
     try {
       const { data } = await updateBooking(id, { [field]: value });
@@ -52,11 +60,17 @@ const History = () => {
         if (value === true) {
           setSent((prev) => prev.filter((b) => b._id !== id));
           setPuja((prev) => [data, ...prev]);
+          setActiveTab('puja');
         } else {
           setPuja((prev) => prev.filter((b) => b._id !== id));
           setSent((prev) => [data, ...prev]);
+          setActiveTab('sent');
         }
+        window.dispatchEvent(new Event('statsUpdated'));
       } else {
+        if (field === 'pujaGroceryPaymentMethod') {
+          window.dispatchEvent(new Event('statsUpdated'));
+        }
         if (type === 'completed') setCompleted((prev) => prev.map((b) => b._id === id ? data : b));
         else if (type === 'sent') setSent((prev) => prev.map((b) => b._id === id ? data : b));
         else if (type === 'puja') setPuja((prev) => prev.map((b) => b._id === id ? data : b));
@@ -91,6 +105,17 @@ const History = () => {
       return [updated, ...prev];
     });
     setPuja((prev) => prev.map((b) => b._id === updated._id ? updated : b));
+  };
+
+  const handleRecoverOldData = async () => {
+    if (!window.confirm('Recover old bookings that may not be visible in your current account?')) return;
+    try {
+      const { data } = await claimOrphans();
+      toast(data.message || 'Recovered old bookings');
+      fetchHistory();
+    } catch {
+      toast('Failed to recover old booking data', 'error');
+    }
   };
 
   const handlePhoneSave = (booking, type) => {
@@ -168,6 +193,9 @@ const History = () => {
             <option value="asc">Visit Date ↑</option>
             <option value="phone">📞 Phone Number</option>
           </select>
+          <button className="btn btn-warning btn-sm" onClick={handleRecoverOldData} style={{ whiteSpace: 'nowrap' }}>
+            🔄 Recover Old Data
+          </button>
         </div>
       </div>
 
@@ -217,7 +245,7 @@ const History = () => {
                 <thead>
                   <tr>
                     <th>#</th><th>Bookers Date</th><th>Booked Date</th><th>Phone</th>
-                    <th>Member 1</th><th>Member 2</th><th>Gothram</th>
+                    <th>Gothram</th><th>Member 1</th><th>Member 2</th>
                     <th>💰 Paid</th><th>✅ Done</th>
                     {(activeTab === 'sent' || activeTab === 'puja') && (
                       <>
@@ -235,9 +263,9 @@ const History = () => {
                       <td>{fmt(b.bookingDate)}</td>
                       <td>{fmt(b.visitDate)}</td>
                       <td><PhoneCell b={b} /></td>
+                      <td>{b.gothram || '—'}</td>
                       <td style={{ fontWeight: 600 }}>{b.member1}</td>
                       <td>{b.member2 || '—'}</td>
-                      <td>{b.gothram || '—'}</td>
                       <td className="checkbox-cell" onClick={() => saveField(b._id, 'paid', !b.paid, activeTab)} style={{ cursor: 'pointer' }}><span style={{ color: b.paid ? 'var(--success)' : 'var(--danger)' }}>{b.paid ? '✅' : '❌'}</span></td>
                       <td className="checkbox-cell" onClick={() => saveField(b._id, 'completed', !b.completed, activeTab)} style={{ cursor: 'pointer' }}><span style={{ color: b.completed ? 'var(--success)' : 'var(--danger)' }}>{b.completed ? '✅' : '❌'}</span></td>
                       {(activeTab === 'sent' || activeTab === 'puja') && (
@@ -290,7 +318,9 @@ const History = () => {
                     <PhoneCell b={b} />
                   </div>
                   {b.gothram && <div className="card-row"><span className="card-label">🏛️ Gothram</span><span className="card-value">{b.gothram}</span></div>}
-                  <div className="card-row"><span className="card-label">📅 Bookers Date</span><span className="card-value">{fmt(b.bookingDate)}</span></div>
+                  <div className="card-row"><span className="card-label">� Member 1</span><span className="card-value" style={{ fontWeight: 600 }}>{b.member1}</span></div>
+                  {b.member2 && <div className="card-row"><span className="card-label">👤 Member 2</span><span className="card-value">{b.member2}</span></div>}
+                  <div className="card-row"><span className="card-label">�📅 Bookers Date</span><span className="card-value">{fmt(b.bookingDate)}</span></div>
                   <div className="card-row"><span className="card-label">💰 Paid</span><span className="card-value" onClick={() => saveField(b._id, 'paid', !b.paid, activeTab)} style={{ cursor: 'pointer' }}>{b.paid ? '✅ Yes' : '❌ No'}</span></div>
                   <div className="card-row"><span className="card-label">✅ Done</span><span className="card-value" onClick={() => saveField(b._id, 'completed', !b.completed, activeTab)} style={{ cursor: 'pointer' }}>{b.completed ? '✅ Yes' : '❌ No'}</span></div>
                   {(activeTab === 'sent' || activeTab === 'puja') && (

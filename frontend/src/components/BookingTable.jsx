@@ -145,7 +145,7 @@ const BookingTable = ({ bookings, setBookings }) => {
             <thead>
               <tr>
                 <th>#</th><th>Bookers Date</th><th>Booked Date</th><th>Phone</th>
-                <th>Member 1</th><th>Member 2</th><th>Gothram</th>
+                <th>Gothram</th><th>Member 1</th><th>Member 2</th>
                 <th>✅ Done</th><th>📤 Sent</th><th>💰 Paid</th>
                 <th>Payment</th><th>📎 PDF</th><th>Actions</th>
               </tr>
@@ -181,6 +181,11 @@ const BookingTable = ({ bookings, setBookings }) => {
                     )}
                   </td>
                   <td>
+                    <GothramInput value={b.gothram || ''} onChange={(val) => handleFieldChange(b._id, 'gothram', val)}
+                      onBlur={(val) => { if (val !== b.gothram) { saveField(b, 'gothram', val); setBookings((prev) => prev.map((x) => x._id === b._id ? { ...x, gothram: val } : x)); } }}
+                      placeholder="—" />
+                  </td>
+                  <td>
                     <div className="editable-cell">
                       <input type="text" defaultValue={b.member1}
                         onChange={(e) => handleFieldChange(b._id, 'member1', e.target.value)}
@@ -193,11 +198,6 @@ const BookingTable = ({ bookings, setBookings }) => {
                         onChange={(e) => handleFieldChange(b._id, 'member2', e.target.value)}
                         onBlur={() => handleBlur(b, 'member2')} placeholder="—" />
                     </div>
-                  </td>
-                  <td>
-                    <GothramInput value={b.gothram || ''} onChange={(val) => handleFieldChange(b._id, 'gothram', val)}
-                      onBlur={(val) => { if (val !== b.gothram) { saveField(b, 'gothram', val); setBookings((prev) => prev.map((x) => x._id === b._id ? { ...x, gothram: val } : x)); } }}
-                      placeholder="—" />
                   </td>
                   <td className="checkbox-cell"><input type="checkbox" checked={b.completed} onChange={() => handleCheckbox(b, 'completed')} /></td>
                   <td className="checkbox-cell"><input type="checkbox" checked={b.pdfSent} onChange={() => handleCheckbox(b, 'pdfSent')} /></td>

@@ -59,6 +59,13 @@ const Dashboard = () => {
     }).catch(() => {});
   }, [bookings]); // refetch when bookings change
 
+  useEffect(() => {
+    const handleStatsUpdated = () => {
+      getStats().then(({ data }) => setStats(data)).catch(() => {});
+    };
+    window.addEventListener('statsUpdated', handleStatsUpdated);
+    return () => window.removeEventListener('statsUpdated', handleStatsUpdated);
+  }, []);
 
   const handleClaimOrphans = async () => {
     if (window.confirm('Do you want to recover old bookings that are not visible? This will assign them to your account.')) {
@@ -199,23 +206,24 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {stats.admins && stats.admins.length > 0 && (
-            <div className="admin-performance">
-              <h3>👤 Admin Performance</h3>
-              <div className="admin-grid">
-                {stats.admins.map(a => (
-                  <div key={a.username} className="admin-stat-card">
-                    <div className="admin-name">{a.username}</div>
-                    <div className="admin-details">
-                      <span>🎟️ {a.count} tickets</span>
-                      <span>💰 ₹{a.amount}</span>
-                      <span className="profit-text">📈 ₹{a.profit} profit</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <div className="stats-bar">
+            <div className="stat-card">
+              <span className="stat-icon">🥥</span>
+              <div className="stat-info"><div className="label">Puja Persons</div><div className="value">{stats.overall.pujaCount || 0}</div></div>
             </div>
-          )}
+            <div className="stat-card">
+              <span className="stat-icon">💰</span>
+              <div className="stat-info"><div className="label">Puja Profit</div><div className="value">₹{stats.overall.pujaProfit || 0}</div></div>
+            </div>
+            <div className="stat-card phonepe">
+              <span className="stat-icon">📱</span>
+              <div className="stat-info"><div className="label">Puja PhonePe</div><div className="value">₹{stats.overall.pujaPhonepeAmount || 0}</div></div>
+            </div>
+            <div className="stat-card cash">
+              <span className="stat-icon">💵</span>
+              <div className="stat-info"><div className="label">Puja Cash</div><div className="value">₹{stats.overall.pujaCashAmount || 0}</div></div>
+            </div>
+          </div>
 
           <AddBookingForm onAdded={(b) => setBookings((prev) => [b, ...prev])} />
 
