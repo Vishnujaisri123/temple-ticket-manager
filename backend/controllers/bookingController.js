@@ -20,6 +20,10 @@ const getAll = async (req, res) => {
     filter.pdfSent = false;
   } else if (status === 'sent') {
     filter.pdfSent = true;
+    filter.pujaGroceryDone = { $ne: true };
+  } else if (status === 'puja_completed') {
+    filter.pdfSent = true;
+    filter.pujaGroceryDone = true;
   } else if (status === 'history_completed') {
     filter.completed = true;
     filter.paid = true;
@@ -149,6 +153,7 @@ const getStats = async (req, res) => {
     let phonepeAmount = 0;
     let cashAmount = 0;
     let sentCount = 0;
+    let paidCount = 0;
     
     const adminStats = {};
     const dailyStats = {};
