@@ -16,7 +16,8 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.0.3",
     "multer": "^2.0.1",
-    "node-cron": "^4.2.1"
+    "node-cron": "^4.2.1",
+    "pdf-parse": "^2.4.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

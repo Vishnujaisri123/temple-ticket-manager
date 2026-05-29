@@ -21,7 +21,7 @@ const Dashboard = () => {
   const [bookings, setBookings] = useState([]);
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('asc');
-  const [stats, setStats] = useState({ overall: {}, admins: [] });
+  const [stats, setStats] = useState({ overall: {}, admins: [], today: {} });
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
 
@@ -97,7 +97,7 @@ const Dashboard = () => {
           <div className="nav-tabs">
             <button className={`nav-tab ${page === 'dashboard' ? 'active' : ''}`} onClick={() => setPage('dashboard')}>📋 Dashboard</button>
             <button className={`nav-tab ${page === 'history' ? 'active' : ''}`} onClick={() => setPage('history')}>📜 History</button>
-            <button className={`nav-tab ${page === 'daily' ? 'active' : ''}`} onClick={() => setPage('daily')}>📊 Daily Report</button>
+            <button className={`nav-tab ${page === 'daily' ? 'active' : ''}`} onClick={() => setPage('daily')}>📊 Reports</button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button className="btn-mode" onClick={() => setDarkMode(!darkMode)}>
@@ -117,10 +117,39 @@ const Dashboard = () => {
         <main className="main-content">
           <div className="dashboard-header">
             <div className="dashboard-title">
-              <h2>Daily Financial Report</h2>
-              <p>Payment breakdown based on the date tickets were entered</p>
+              <h2>Overall & Daily Financial Report</h2>
+              <p>Overall summary and payment breakdown based on the date tickets were entered</p>
             </div>
           </div>
+          {stats.overall && (
+            <div className="admin-stat-card" style={{ marginBottom: '2rem', border: '2px solid var(--primary-color)' }}>
+              <div className="admin-name" style={{ fontSize: '1.2rem', color: 'var(--primary-color)' }}>🌟 Lifetime Overall Stats</div>
+              <div className="admin-details">
+                <span style={{ fontSize: '1rem', marginBottom: '1rem', display: 'block' }}>🎟️ {stats.overall.count || 0} total tickets entered</span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
+                  <div className="stat-card money" style={{ padding: '1rem' }}>
+                    <div className="stat-info"><div className="label">Total Amount</div><div className="value" style={{ fontSize: '1.2rem' }}>₹{stats.overall.totalAmount || 0}</div></div>
+                  </div>
+                  <div className="stat-card profit" style={{ padding: '1rem' }}>
+                    <div className="stat-info"><div className="label">Total Profit</div><div className="value" style={{ fontSize: '1.2rem' }}>₹{stats.overall.totalProfit || 0}</div></div>
+                  </div>
+                  <div className="stat-card phonepe" style={{ padding: '1rem' }}>
+                    <div className="stat-info"><div className="label">PhonePe</div><div className="value" style={{ fontSize: '1.2rem' }}>₹{stats.overall.phonepeAmount || 0}</div></div>
+                  </div>
+                  <div className="stat-card cash" style={{ padding: '1rem' }}>
+                    <div className="stat-info"><div className="label">Cash</div><div className="value" style={{ fontSize: '1.2rem' }}>₹{stats.overall.cashAmount || 0}</div></div>
+                  </div>
+                  <div className="stat-card" style={{ padding: '1rem' }}>
+                    <div className="stat-info"><div className="label">Total Puja</div><div className="value" style={{ fontSize: '1.2rem' }}>{stats.overall.pujaCount || 0}</div></div>
+                  </div>
+                  <div className="stat-card money" style={{ padding: '1rem' }}>
+                    <div className="stat-info"><div className="label">Puja Profit</div><div className="value" style={{ fontSize: '1.2rem' }}>₹{stats.overall.pujaProfit || 0}</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <h3 style={{ marginBottom: '1rem', color: 'var(--text-color)' }}>Daily Breakdown</h3>
           {stats.daily && stats.daily.length > 0 ? (
             <div className="daily-grid">
               {stats.daily.map(day => (
@@ -157,8 +186,8 @@ const Dashboard = () => {
         <main className="main-content">
           <div className="dashboard-header">
             <div className="dashboard-title">
-              <h2>Booking Dashboard</h2>
-              <p>Manage all temple ticket bookings</p>
+              <h2>Today's Dashboard</h2>
+              <p>Manage today's temple ticket bookings and stats</p>
             </div>
             <div className="controls">
               <button className="btn btn-warning btn-sm" onClick={handleClaimOrphans} style={{ gap: '0.4rem' }}>
@@ -175,53 +204,53 @@ const Dashboard = () => {
           <div className="stats-bar financial-stats">
             <div className="stat-card money">
               <span className="stat-icon">💰</span>
-              <div className="stat-info"><div className="label">Total Amount</div><div className="value">₹{stats.overall.totalAmount || 0}</div></div>
+              <div className="stat-info"><div className="label">Today's Amount</div><div className="value">₹{stats.today?.totalAmount || 0}</div></div>
             </div>
             <div className="stat-card profit">
               <span className="stat-icon">📈</span>
-              <div className="stat-info"><div className="label">Total Profit</div><div className="value">₹{stats.overall.totalProfit || 0}</div></div>
+              <div className="stat-info"><div className="label">Today's Profit</div><div className="value">₹{stats.today?.totalProfit || 0}</div></div>
             </div>
             <div className="stat-card phonepe">
               <span className="stat-icon">📱</span>
-              <div className="stat-info"><div className="label">PhonePe</div><div className="value">₹{stats.overall.phonepeAmount || 0}</div></div>
+              <div className="stat-info"><div className="label">Today's PhonePe</div><div className="value">₹{stats.today?.phonepeAmount || 0}</div></div>
             </div>
             <div className="stat-card cash">
               <span className="stat-icon">💵</span>
-              <div className="stat-info"><div className="label">Cash</div><div className="value">₹{stats.overall.cashAmount || 0}</div></div>
+              <div className="stat-info"><div className="label">Today's Cash</div><div className="value">₹{stats.today?.cashAmount || 0}</div></div>
             </div>
           </div>
 
           <div className="stats-bar">
             <div className="stat-card">
               <span className="stat-icon">📋</span>
-              <div className="stat-info"><div className="label">Total Bookings</div><div className="value">{stats.overall.count || 0}</div></div>
+              <div className="stat-info"><div className="label">Today's Bookings</div><div className="value">{stats.today?.count || 0}</div></div>
             </div>
             <div className="stat-card">
               <span className="stat-icon">✅</span>
-              <div className="stat-info"><div className="label">Paid (Total)</div><div className="value">{stats.overall.paidCount || bookings.filter((b) => b.paid).length}</div></div>
+              <div className="stat-info"><div className="label">Paid (Today)</div><div className="value">{stats.today?.paidCount || 0}</div></div>
             </div>
             <div className="stat-card">
               <span className="stat-icon">📤</span>
-              <div className="stat-info"><div className="label">Sent (Total)</div><div className="value">{stats.overall.sentCount || bookings.filter((b) => b.pdfSent).length}</div></div>
+              <div className="stat-info"><div className="label">Sent (Today)</div><div className="value">{stats.today?.sentCount || 0}</div></div>
             </div>
           </div>
 
           <div className="stats-bar">
             <div className="stat-card">
               <span className="stat-icon">🥥</span>
-              <div className="stat-info"><div className="label">Puja Persons</div><div className="value">{stats.overall.pujaCount || 0}</div></div>
+              <div className="stat-info"><div className="label">Puja Persons (Today)</div><div className="value">{stats.today?.pujaCount || 0}</div></div>
             </div>
             <div className="stat-card">
               <span className="stat-icon">💰</span>
-              <div className="stat-info"><div className="label">Puja Profit</div><div className="value">₹{stats.overall.pujaProfit || 0}</div></div>
+              <div className="stat-info"><div className="label">Puja Profit (Today)</div><div className="value">₹{stats.today?.pujaProfit || 0}</div></div>
             </div>
             <div className="stat-card phonepe">
               <span className="stat-icon">📱</span>
-              <div className="stat-info"><div className="label">Puja PhonePe</div><div className="value">₹{stats.overall.pujaPhonepeAmount || 0}</div></div>
+              <div className="stat-info"><div className="label">Puja PhonePe (Today)</div><div className="value">₹{stats.today?.pujaPhonepeAmount || 0}</div></div>
             </div>
             <div className="stat-card cash">
               <span className="stat-icon">💵</span>
-              <div className="stat-info"><div className="label">Puja Cash</div><div className="value">₹{stats.overall.pujaCashAmount || 0}</div></div>
+              <div className="stat-info"><div className="label">Puja Cash (Today)</div><div className="value">₹{stats.today?.pujaCashAmount || 0}</div></div>
             </div>
           </div>
 

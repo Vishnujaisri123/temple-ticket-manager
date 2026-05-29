@@ -4,6 +4,7 @@ import { toast } from '../components/Toast';
 import SendButton from '../components/SendButton';
 import UploadCell from '../components/UploadCell';
 import PrintButton from '../components/PrintButton';
+import AutoPdfDropzone from '../components/AutoPdfDropzone';
 
 const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN') : '—';
 const fmtTime = (d) => d ? new Date(d).toLocaleString('en-IN', {
@@ -118,6 +119,13 @@ const History = () => {
     }
   };
 
+  const handleAutoUploaded = (updatedBooking) => {
+    // If it matched a booking in any tab, update it
+    setCompleted((prev) => prev.map((b) => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));
+    setSent((prev) => prev.map((b) => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));
+    setPuja((prev) => prev.map((b) => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));
+  };
+
   const handlePhoneSave = (booking, type) => {
     const val = editingPhone[booking._id];
     if (val !== undefined && val !== booking.phone) saveField(booking._id, 'phone', val, type);
@@ -198,6 +206,8 @@ const History = () => {
           </button>
         </div>
       </div>
+
+      <AutoPdfDropzone onUploadSuccess={handleAutoUploaded} />
 
       <div className="stats-bar">
         <div className="stat-card">
