@@ -146,7 +146,7 @@ const uploadAutoPdf = async (req, res) => {
     const textNormalized = normalizeText(pdfData.text);
 
     // Optimize: fetch recent bookings first, use .lean() for huge performance boost, and only select needed fields
-    const bookings = await Booking.find({ createdBy: req.admin.id })
+    const bookings = await Booking.find({ createdBy: req.admin.id, completed: true, paid: true })
       .select('member1 member2 gothram visitDate bookingDate _id')
       .sort({ visitDate: -1 })
       .lean();
