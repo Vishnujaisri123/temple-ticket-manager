@@ -136,7 +136,14 @@ const uploadAutoPdf = async (req, res) => {
   try {
     // Read only the first page to make parsing lightning fast
     const pdfData = await pdfParse(req.file.buffer, { max: 1 });
-    const text = pdfData.text.toLowerCase();
+    
+    // Normalize spaces and lowercase for robust matching
+    const normalizeText = (str) => {
+      if (!str) return '';
+      return str.toLowerCase().replace(/\s+/g, ' ').trim();
+    };
+    
+    const textNormalized = normalizeText(pdfData.text);
 
     // Optimize: fetch recent bookings first, use .lean() for huge performance boost, and only select needed fields
     const bookings = await Booking.find({ createdBy: req.admin.id })
@@ -146,30 +153,42 @@ const uploadAutoPdf = async (req, res) => {
       
     let matchedBooking = null;
     
-    // Helper to format date exactly as DD-MM-YYYY which matches the PDF
-    const formatPdfDate = (date) => {
+    // Helper to format date using UTC getters to prevent server/local timezone shifts
+    const formatPdfDateUTC = (date) => {
       const d = new Date(date);
-      return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const year = d.getUTCFullYear();
+      return {
+        hyphen: `${day}-${month}-${year}`,
+        slash: `${day}/${month}/${year}`
+      };
     };
 
     for (const b of bookings) {
       if (!b.member1) continue;
       
-      const m1Match = text.includes(b.member1.toLowerCase());
-      const m2Match = b.member2 && text.includes(b.member2.toLowerCase());
-      const gothramMatch = b.gothram && text.includes(b.gothram.toLowerCase());
+      const m1Match = textNormalized.includes(normalizeText(b.member1));
+      const m2Match = b.member2 && textNormalized.includes(normalizeText(b.member2));
+      const gothramMatch = b.gothram && textNormalized.includes(normalizeText(b.gothram));
       
       let score = 0;
       if (m1Match) score += 10;
       if (m2Match) score += 5;
       if (gothramMatch) score += 5;
       
-      if (b.visitDate && text.includes(formatPdfDate(b.visitDate))) {
-        score += 10; // Seva Date
+      if (b.visitDate) {
+        const visitDates = formatPdfDateUTC(b.visitDate);
+        if (textNormalized.includes(visitDates.hyphen) || textNormalized.includes(visitDates.slash)) {
+          score += 10; // Seva Date
+        }
       }
 
-      if (b.bookingDate && text.includes(formatPdfDate(b.bookingDate))) {
-        score += 5; // Booking On date
+      if (b.bookingDate) {
+        const bookingDates = formatPdfDateUTC(b.bookingDate);
+        if (textNormalized.includes(bookingDates.hyphen) || textNormalized.includes(bookingDates.slash)) {
+          score += 5; // Booking On date
+        }
       }
       
       // If we have a very strong match (Names + Date + Gothram), break early!

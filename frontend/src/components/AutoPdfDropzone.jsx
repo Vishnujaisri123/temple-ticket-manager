@@ -23,6 +23,8 @@ const AutoPdfDropzone = ({ onUploadSuccess }) => {
         const { data } = await uploadAutoPdf(fd);
         toast.success(data.message);
         if (onUploadSuccess) onUploadSuccess(data.booking);
+        // Dispatch global custom event for reactive real-time updates across pages
+        window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: data.booking }));
       } catch (err) {
         toast.error(`Error uploading ${file.name}: ${err.response?.data?.message || 'Upload failed'}`);
       }

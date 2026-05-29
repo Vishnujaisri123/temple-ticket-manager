@@ -67,6 +67,15 @@ const Dashboard = () => {
     return () => window.removeEventListener('statsUpdated', handleStatsUpdated);
   }, []);
 
+  useEffect(() => {
+    const handleBookingUpdated = (e) => {
+      const updated = e.detail;
+      setBookings((prev) => prev.map((b) => b._id === updated._id ? { ...b, ...updated } : b));
+    };
+    window.addEventListener('bookingUpdated', handleBookingUpdated);
+    return () => window.removeEventListener('bookingUpdated', handleBookingUpdated);
+  }, []);
+
   const handleAutoUploaded = (updatedBooking) => {
     // Update booking in local state immediately so PDF button appears
     setBookings((prev) => prev.map((b) => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));

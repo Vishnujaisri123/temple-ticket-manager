@@ -20,6 +20,8 @@ const UploadCell = ({ booking, onUploaded }) => {
       fd.append('id', booking._id);
       const { data } = await uploadPdf(fd);
       onUploaded(booking._id, data.booking);
+      // Dispatch global custom event for reactive real-time updates across pages
+      window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: data.booking }));
       toast('PDF uploaded successfully');
     } catch (err) {
       toast(err.response?.data?.message || 'Upload failed', 'error');

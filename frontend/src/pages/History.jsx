@@ -52,6 +52,17 @@ const History = () => {
     return () => window.removeEventListener('statsUpdated', handleStatsUpdated);
   }, [fetchHistory]);
 
+  useEffect(() => {
+    const handleBookingUpdated = (e) => {
+      const updated = e.detail;
+      setCompleted((prev) => prev.map((b) => b._id === updated._id ? { ...b, ...updated } : b));
+      setSent((prev) => prev.map((b) => b._id === updated._id ? { ...b, ...updated } : b));
+      setPuja((prev) => prev.map((b) => b._id === updated._id ? { ...b, ...updated } : b));
+    };
+    window.addEventListener('bookingUpdated', handleBookingUpdated);
+    return () => window.removeEventListener('bookingUpdated', handleBookingUpdated);
+  }, []);
+
   const saveField = useCallback(async (id, field, value, type) => {
     try {
       const { data } = await updateBooking(id, { [field]: value });
