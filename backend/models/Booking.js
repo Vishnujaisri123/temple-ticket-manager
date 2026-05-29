@@ -5,6 +5,7 @@ const bookingSchema = new mongoose.Schema(
     serialNo: { type: Number, unique: true },
     bookingDate: { type: Date, required: true, default: Date.now },
     visitDate: { type: Date, required: true },
+    slotTime: { type: String, default: '' },
     phone: { type: String, required: true, trim: true },
     member1: { type: String, required: true, trim: true },
     member2: { type: String, trim: true, default: '' },

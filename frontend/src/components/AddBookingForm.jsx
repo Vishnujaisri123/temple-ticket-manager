@@ -6,6 +6,7 @@ import GothramInput from './GothramInput';
 const defaultForm = {
   bookingDate: new Date().toISOString().split('T')[0],
   visitDate: '',
+  slotTime: '',
   phone: '',
   member1: '',
   member2: '',
@@ -75,6 +76,16 @@ const AddBookingForm = ({ onAdded }) => {
             <div className="form-group">
               <label>Booked Date *</label>
               <input type="date" name="visitDate" value={form.visitDate} onChange={handleChange} min={minVisitDate} required />
+            </div>
+            <div className="form-group">
+              <label>Timeslot</label>
+              <select name="slotTime" value={form.slotTime} onChange={handleChange} style={{ width: '100%', height: '38px', padding: '0.5rem 0.65rem', border: '1.5px solid var(--border)', borderRadius: 'var(--radius)', fontSize: '0.875rem', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }}>
+                <option value="">— Slot —</option>
+                <option value="6am-7am">6am-7am</option>
+                <option value="7am-8am">7am-8am</option>
+                <option value="8am-9am">8am-9am</option>
+                <option value="9am-10am">9am-10am</option>
+              </select>
             </div>
             <div className="form-group">
               <label>Phone *</label>

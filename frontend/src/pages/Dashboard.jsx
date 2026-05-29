@@ -5,7 +5,6 @@ import { toast } from '../components/Toast';
 import BookingTable from '../components/BookingTable';
 import AddBookingForm from '../components/AddBookingForm';
 import History from './History';
-import AutoPdfDropzone from '../components/AutoPdfDropzone';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -207,7 +206,7 @@ const Dashboard = () => {
             </div>
           </div>
           
-          <AutoPdfDropzone onUploadSuccess={handleAutoUploaded} />
+
 
           <div className="stats-bar financial-stats">
             <div className="stat-card money">

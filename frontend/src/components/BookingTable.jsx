@@ -161,6 +161,32 @@ const BookingTable = ({ bookings, setBookings }) => {
                         onChange={(e) => handleFieldChange(b._id, 'visitDate', e.target.value)}
                         onBlur={() => handleBlur(b, 'visitDate')} />
                     </div>
+                    <div style={{ marginTop: '0.25rem' }}>
+                      <select
+                        value={b.slotTime || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          saveField(b, 'slotTime', val);
+                          setBookings((prev) => prev.map((x) => x._id === b._id ? { ...x, slotTime: val } : x));
+                        }}
+                        style={{
+                          border: '1px solid var(--border)',
+                          borderRadius: '4px',
+                          padding: '0.1rem 0.2rem',
+                          fontSize: '0.72rem',
+                          background: 'var(--surface)',
+                          color: 'var(--text-muted)',
+                          width: '100%',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="">— Slot —</option>
+                        <option value="6am-7am">6am-7am</option>
+                        <option value="7am-8am">7am-8am</option>
+                        <option value="8am-9am">8am-9am</option>
+                        <option value="9am-10am">9am-10am</option>
+                      </select>
+                    </div>
                   </td>
                   <td>
                     {editingPhone[b._id] !== undefined ? (
@@ -227,7 +253,7 @@ const BookingTable = ({ bookings, setBookings }) => {
                 <div className="card-serial">{b.serialNo}</div>
                 <div>
                   <div className="card-name">{b.member1}{b.member2 ? ` & ${b.member2}` : ''}</div>
-                  <div className="card-date">📅 Booked: {fmt(b.visitDate)}</div>
+                  <div className="card-date">📅 Booked: {fmt(b.visitDate)} {b.slotTime && `| ⏱️ ${b.slotTime}`}</div>
                 </div>
               </div>
               <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }}
@@ -266,6 +292,33 @@ const BookingTable = ({ bookings, setBookings }) => {
               <div className="card-row">
                 <span className="card-label">💳 Payment</span>
                 <PaymentSelect booking={b} onUpdate={(bk, field, val) => { saveField(bk, field, val); setBookings((prev) => prev.map((x) => x._id === bk._id ? { ...x, [field]: val } : x)); }} />
+              </div>
+              <div className="card-row">
+                <span className="card-label">⏱️ Timeslot</span>
+                <select
+                  value={b.slotTime || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    saveField(b, 'slotTime', val);
+                    setBookings((prev) => prev.map((x) => x._id === b._id ? { ...x, slotTime: val } : x));
+                  }}
+                  style={{
+                    border: '1px solid var(--border)',
+                    borderRadius: '4px',
+                    padding: '0.2rem 0.4rem',
+                    fontSize: '0.78rem',
+                    background: 'var(--surface)',
+                    color: 'var(--text)',
+                    width: '120px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="">— Slot —</option>
+                  <option value="6am-7am">6am-7am</option>
+                  <option value="7am-8am">7am-8am</option>
+                  <option value="8am-9am">8am-9am</option>
+                  <option value="9am-10am">9am-10am</option>
+                </select>
               </div>
               <div className="card-checkboxes">
                 <label className="card-checkbox-item">
