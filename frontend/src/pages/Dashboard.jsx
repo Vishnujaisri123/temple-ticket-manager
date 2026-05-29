@@ -5,6 +5,7 @@ import { toast } from '../components/Toast';
 import BookingTable from '../components/BookingTable';
 import AddBookingForm from '../components/AddBookingForm';
 import History from './History';
+import AutoPdfDropzone from '../components/AutoPdfDropzone';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -66,6 +67,11 @@ const Dashboard = () => {
     window.addEventListener('statsUpdated', handleStatsUpdated);
     return () => window.removeEventListener('statsUpdated', handleStatsUpdated);
   }, []);
+
+  const handleAutoUploaded = (updatedBooking) => {
+    // Update booking in local state immediately so PDF button appears
+    setBookings((prev) => prev.map((b) => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));
+  };
 
   const handleClaimOrphans = async () => {
     if (window.confirm('Do you want to recover old bookings that are not visible? This will assign them to your account.')) {
@@ -200,6 +206,8 @@ const Dashboard = () => {
               </select>
             </div>
           </div>
+          
+          <AutoPdfDropzone onUploadSuccess={handleAutoUploaded} />
 
           <div className="stats-bar financial-stats">
             <div className="stat-card money">
