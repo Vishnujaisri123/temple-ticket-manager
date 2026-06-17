@@ -9,14 +9,35 @@ const uploadDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const getAll = async (req, res) => {
-  const { status, sort, weekly } = req.query;
+  const { status, sort, weekly, filterType, startDate, endDate } = req.query;
   let filter = { createdBy: req.admin.id };
 
-  if (weekly === 'true') {
-    const { getCurrentWeekStart, getCurrentWeekEnd } = require('../services/weeklyStatsService');
-    const startOfWeek = getCurrentWeekStart();
-    const endOfWeek = getCurrentWeekEnd(startOfWeek);
-    filter.bookingDate = { $gte: startOfWeek, $lte: endOfWeek };
+  const { getCurrentWeekStart, getCurrentWeekEnd } = require('../services/weeklyStatsService');
+  const startOfWeek = getCurrentWeekStart();
+  const endOfWeek = getCurrentWeekEnd(startOfWeek);
+
+  if (weekly === 'true' || filterType === 'current_week') {
+    filter.createdAt = { $gte: startOfWeek, $lte: endOfWeek };
+  } else if (filterType === 'previous_week') {
+    const prevStartOfWeek = new Date(startOfWeek);
+    prevStartOfWeek.setDate(startOfWeek.getDate() - 7);
+    const prevEndOfWeek = new Date(endOfWeek);
+    prevEndOfWeek.setDate(endOfWeek.getDate() - 7);
+    filter.createdAt = { $gte: prevStartOfWeek, $lte: prevEndOfWeek };
+  } else if (filterType === 'further_date') {
+    filter.createdAt = { $lt: startOfWeek };
+  } else if (filterType === 'monthly') {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    const endOfMonth = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+    filter.createdAt = { $gte: startOfMonth, $lte: endOfMonth };
+  } else if (filterType === 'custom' && startDate && endDate) {
+    const sD = new Date(startDate);
+    sD.setHours(0, 0, 0, 0);
+    const eD = new Date(endDate);
+    eD.setHours(23, 59, 59, 999);
+    filter.createdAt = { $gte: sD, $lte: eD };
   }
 
   if (status === 'paid') {
@@ -45,8 +66,10 @@ const getAll = async (req, res) => {
     filter.reminderSent = false;
     filter.pdfSent = false;
   } else {
-    filter.pdfSent = false;
-    filter.$nor = [{ completed: true, paid: true }];
+    if (weekly === 'true') {
+      filter.pdfSent = false;
+      filter.$nor = [{ completed: true, paid: true }];
+    }
   }
 
   let sortObj = { visitDate: sort === 'asc' ? 1 : -1, phone: 1 };
@@ -301,7 +324,7 @@ const getStats = async (req, res) => {
       if (b.paymentMethod === 'phonepe') phonepeAmount += amt;
       if (b.paymentMethod === 'cash') cashAmount += amt;
       
-      const dateKey = b.bookingDate ? b.bookingDate.toISOString().split('T')[0] : 'Unknown';
+      const dateKey = b.createdAt ? b.createdAt.toISOString().split('T')[0] : 'Unknown';
       if (!dailyStats[dateKey]) {
         dailyStats[dateKey] = {
           date: dateKey,

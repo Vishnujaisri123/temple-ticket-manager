@@ -20,9 +20,12 @@ import {
   FiHome,
   FiUser,
   FiClock,
+  FiFolderPlus,
+  FiActivity,
 } from 'react-icons/fi';
 import { LuHistory } from 'react-icons/lu';
 import { TbDatabaseImport } from 'react-icons/tb';
+import { HiOutlineDocumentReport } from 'react-icons/hi';
 
 const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN') : '—';
 const fmtTime = (d) => d ? new Date(d).toLocaleString('en-IN', {
@@ -38,12 +41,38 @@ const History = () => {
   const [editingPhone, setEditingPhone] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Subsections inside History
+  const [subSection, setSubSection] = useState('weekly'); // 'weekly' | 'reports' | 'further'
+  const [dateFilter, setDateFilter] = useState('current_week'); // 'current_week' | 'previous_week' | 'monthly' | 'further_date' | 'custom'
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+
   const fetchHistory = useCallback(async () => {
     setLoading(true);
     try {
+      const params = { sort };
+      
+      if (subSection === 'weekly') {
+        params.filterType = dateFilter;
+        if (dateFilter === 'custom') {
+          if (!customStart || !customEnd) {
+            setCompleted([]);
+            setSent([]);
+            setLoading(false);
+            return;
+          }
+          params.startDate = customStart;
+          params.endDate = customEnd;
+        }
+      } else if (subSection === 'reports') {
+        params.filterType = 'monthly';
+      } else if (subSection === 'further') {
+        params.filterType = 'further_date';
+      }
+
       const [completedRes, sentRes] = await Promise.all([
-        getBookings({ status: 'history_completed', sort }),
-        getBookings({ status: 'sent', sort }),
+        getBookings({ ...params, status: 'history_completed' }),
+        getBookings({ ...params, status: 'sent' }),
       ]);
       setCompleted(completedRes.data);
       setSent(sentRes.data);
@@ -52,10 +81,9 @@ const History = () => {
     } finally {
       setLoading(false);
     }
-  }, [sort]);
+  }, [sort, subSection, dateFilter, customStart, customEnd]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchHistory();
   }, [fetchHistory]);
 
@@ -123,7 +151,6 @@ const History = () => {
   };
 
   const handleAutoUploaded = (updatedBooking) => {
-    // If it matched a booking in any tab, update it
     setCompleted((prev) => prev.map((b) => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));
     setSent((prev) => prev.map((b) => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));
   };
@@ -176,7 +203,7 @@ const History = () => {
           <h2 style={{ fontSize: '1.2rem', color: 'var(--primary)', margin: 0, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
             <LuHistory className="icon-glow" /> History
           </h2>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Completed, paid and sent records</p>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Manage completed, paid, and sent records</p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flex: 1, justifyContent: 'flex-end', minWidth: '300px' }}>
           <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
@@ -199,6 +226,55 @@ const History = () => {
           </button>
         </div>
       </div>
+
+      {/* History Sub-navigation */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', borderBottom: '2px solid var(--border)', paddingBottom: '0.6rem', flexWrap: 'wrap' }}>
+        <button className={`nav-tab ${subSection === 'weekly' ? 'active' : ''}`} onClick={() => { setSubSection('weekly'); setDateFilter('current_week'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+          <FiCalendar /> Weekly History
+        </button>
+        <button className={`nav-tab ${subSection === 'reports' ? 'active' : ''}`} onClick={() => { setSubSection('reports'); setDateFilter('monthly'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+          <HiOutlineDocumentReport /> Reports
+        </button>
+        <button className={`nav-tab ${subSection === 'further' ? 'active' : ''}`} onClick={() => { setSubSection('further'); setDateFilter('further_date'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+          <FiFolderPlus /> Further Date Bookings
+        </button>
+      </div>
+
+      {/* Date Scope Selectors */}
+      {subSection === 'weekly' && (
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem', background: 'var(--surface)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+          <button className={`btn btn-sm ${dateFilter === 'current_week' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setDateFilter('current_week')}>
+            Current Week
+          </button>
+          <button className={`btn btn-sm ${dateFilter === 'previous_week' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setDateFilter('previous_week')}>
+            Previous Week
+          </button>
+          <button className={`btn btn-sm ${dateFilter === 'custom' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setDateFilter('custom')}>
+            Custom Date Range
+          </button>
+          {dateFilter === 'custom' && (
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginLeft: 'auto', flexWrap: 'wrap' }}>
+              <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} style={{ padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>to</span>
+              <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} style={{ padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {subSection === 'reports' && (
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem', background: 'var(--surface)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Reports Scope:</span>
+          <span className="btn btn-sm btn-primary" style={{ pointerEvents: 'none' }}>Current Calendar Month</span>
+        </div>
+      )}
+
+      {subSection === 'further' && (
+        <div className="reminder-banner" style={{ borderLeft: '4px solid var(--primary)', marginBottom: '1rem', background: 'rgba(59, 130, 246, 0.08)' }}>
+          <span className="icon"><FiActivity className="icon-glow" style={{ color: 'var(--accent)' }} /></span>
+          <span style={{ color: 'var(--text)', fontSize: '0.85rem' }}><strong>Shadow Archive:</strong> Displaying all historical records entered before the current weekly period.</span>
+        </div>
+      )}
 
       <AutoPdfDropzone onUploadSuccess={handleAutoUploaded} />
 
@@ -282,7 +358,7 @@ const History = () => {
                         </td>
                       </tr>
                       {groups[dateKey].map((b) => (
-                        <tr key={b._id} className={activeTab === 'sent' ? 'sent-row' : ''}>
+                        <tr key={b._id} className={`${activeTab === 'sent' ? 'sent-row' : ''}`} style={subSection === 'further' ? { animation: 'shadowSummon 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) forwards' } : {}}>
                           <td><div className="serial-no">{b.serialNo}</div></td>
                           <td>{fmt(b.bookingDate)}</td>
                           <td>
@@ -350,7 +426,7 @@ const History = () => {
                     <span style={{ background: 'rgba(255,255,255,0.25)', padding: '0.1rem 0.5rem', borderRadius: '10px', fontSize: '0.75rem' }}>{groups[dateKey].length} Booking{groups[dateKey].length > 1 ? 's' : ''}</span>
                   </div>
                   {groups[dateKey].map((b) => (
-                    <div key={b._id} className={`booking-card${activeTab === 'sent' ? ' sent-card' : ''}`}>
+                    <div key={b._id} className={`booking-card${activeTab === 'sent' ? ' sent-card' : ''} ${subSection === 'further' ? 'shadow-archive-card' : ''}`}>
                       <div className="booking-card-header">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                           <div className="card-serial">{b.serialNo}</div>
@@ -432,22 +508,22 @@ const History = () => {
                             </span>
                           </div>
                         )}
-                      <div style={{ paddingTop: '0.5rem' }}><UploadCell booking={b} onUploaded={handleUploaded} /></div>
+                        <div style={{ paddingTop: '0.5rem' }}><UploadCell booking={b} onUploaded={handleUploaded} /></div>
+                      </div>
+                      <div className="card-actions">
+                        <SendButton booking={b} onSent={handleSent} />
+                        <SendButton booking={b} isReminder onSent={handleSent} />
+                      </div>
                     </div>
-                    <div className="card-actions">
-                      <SendButton booking={b} onSent={handleSent} />
-                      <SendButton booking={b} isReminder onSent={handleSent} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </>
-      );
-    })()}
-  </div>
-);
+                  ))}
+                </div>
+              ))}
+            </div>
+          </>
+        );
+      })()}
+    </div>
+  );
 };
 
 export default History;

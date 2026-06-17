@@ -37,7 +37,7 @@ const getWeeklyStats = async (adminId) => {
 
   const bookings = await Booking.find({
     createdBy: adminId,
-    bookingDate: { $gte: startOfWeek, $lte: endOfWeek }
+    createdAt: { $gte: startOfWeek, $lte: endOfWeek }
   }).lean();
 
   const stats = {
