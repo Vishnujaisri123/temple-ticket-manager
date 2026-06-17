@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import { updateBooking, deleteBooking } from '../services/api';
 import { toast } from './Toast';
-import UploadCell from './UploadCell';
 import SendButton from './SendButton';
 import GothramInput from './GothramInput';
 import PrintButton from './PrintButton';
@@ -169,7 +168,7 @@ const BookingTable = ({ bookings, setBookings }) => {
                 <th><FiCheckCircle style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} /> Done</th>
                 <th><FiSend style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} /> Sent</th>
                 <th><FiDollarSign style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} /> Paid</th>
-                <th>Payment</th><th><FiFileText style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} /> PDF</th><th>Actions</th>
+                <th>Payment</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -251,7 +250,6 @@ const BookingTable = ({ bookings, setBookings }) => {
                   <td className="checkbox-cell"><input type="checkbox" checked={b.pdfSent} onChange={() => handleCheckbox(b, 'pdfSent')} /></td>
                   <td className="checkbox-cell"><input type="checkbox" checked={b.paid} onChange={() => handleCheckbox(b, 'paid')} /></td>
                   <td><PaymentSelect booking={b} onUpdate={(bk, field, val) => { saveField(bk, field, val); setBookings((prev) => prev.map((x) => x._id === bk._id ? { ...x, [field]: val } : x)); }} /></td>
-                  <td><UploadCell booking={b} onUploaded={handleUploaded} /></td>
                   <td>
                     <div className="row-actions">
                       <SendButton booking={b} onSent={onSent} onRemoveFromDashboard={onRemove} />
@@ -358,9 +356,7 @@ const BookingTable = ({ bookings, setBookings }) => {
                   <FiSend style={{ color: 'var(--primary)' }} /> Sent
                 </label>
               </div>
-              <div style={{ paddingTop: '0.5rem' }}>
-                <UploadCell booking={b} onUploaded={handleUploaded} />
-              </div>
+
             </div>
             <div className="card-actions">
               <SendButton booking={b} onSent={onSent} onRemoveFromDashboard={onRemove} />
