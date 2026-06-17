@@ -9,8 +9,15 @@ const uploadDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const getAll = async (req, res) => {
-  const { status, sort } = req.query;
+  const { status, sort, weekly } = req.query;
   let filter = { createdBy: req.admin.id };
+
+  if (weekly === 'true') {
+    const { getCurrentWeekStart, getCurrentWeekEnd } = require('../services/weeklyStatsService');
+    const startOfWeek = getCurrentWeekStart();
+    const endOfWeek = getCurrentWeekEnd(startOfWeek);
+    filter.bookingDate = { $gte: startOfWeek, $lte: endOfWeek };
+  }
 
   if (status === 'paid') {
     filter.paid = true;
@@ -267,6 +274,8 @@ const getTotalCount = async (req, res) => {
 
 const getStats = async (req, res) => {
   try {
+    const { getWeeklyStats } = require('../services/weeklyStatsService');
+    const weeklyStats = await getWeeklyStats(req.admin.id);
     const allBookings = await Booking.find({ createdBy: req.admin.id }).populate('createdBy', 'username');
     
     let totalAmount = 0;
@@ -364,6 +373,7 @@ const getStats = async (req, res) => {
 
     res.json({
       today: todayStats,
+      weekly: weeklyStats,
       overall: {
         totalAmount,
         totalProfit,
