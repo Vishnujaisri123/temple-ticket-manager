@@ -319,7 +319,8 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
 }
 .send-btn:hover { background: #128C7E; }
 .send-btn:disabled { background: #ccc; cursor: not-allowed; }
-.send-btn.reminder { background: var(--warning); }
+.send-btn.reminder { background: var(--accent); }
+.send-btn.reminder:hover { filter: brightness(0.9); }
 
 /* ── Row Actions ── */
 .row-actions { display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; }

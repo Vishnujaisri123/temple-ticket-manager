@@ -153,7 +153,7 @@ const BookingTable = ({ bookings, setBookings }) => {
       )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
         <PrintButton bookings={bookings} title="Dashboard Bookings" />
-        <button className="btn btn-warning btn-sm" onClick={handleBulkSend} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+        <button className="btn btn-primary btn-sm" onClick={handleBulkSend} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
           <FiSend /> Bulk Send
         </button>
       </div>
@@ -280,7 +280,7 @@ const BookingTable = ({ bookings, setBookings }) => {
                   </div>
                 </div>
               </div>
-              <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }}
+              <button className="btn btn-danger btn-sm btn-icon"
                 onClick={() => handleDelete(b._id)}><FiTrash2 /></button>
             </div>
             <div className="booking-card-body">

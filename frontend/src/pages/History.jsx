@@ -221,7 +221,7 @@ const History = () => {
             <option value="asc">Visit Date ↑</option>
             <option value="phone">Phone Number</option>
           </select>
-          <button className="btn btn-warning btn-sm" onClick={handleRecoverOldData} style={{ whiteSpace: 'nowrap' }}>
+          <button className="btn btn-primary btn-sm" onClick={handleRecoverOldData} style={{ whiteSpace: 'nowrap' }}>
             <TbDatabaseImport className="icon-spin" /> Recover Old Data
           </button>
         </div>
@@ -437,7 +437,7 @@ const History = () => {
                             </div>
                           </div>
                         </div>
-                        <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }}
+                        <button className="btn btn-danger btn-sm btn-icon"
                           onClick={() => handleDelete(b._id, activeTab)}><FiTrash2 /></button>
                       </div>
                       <div className="booking-card-body">

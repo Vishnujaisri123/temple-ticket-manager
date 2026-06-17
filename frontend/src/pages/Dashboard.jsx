@@ -243,7 +243,7 @@ const Dashboard = () => {
               <p>Manage weekly temple ticket bookings and stats</p>
             </div>
             <div className="controls">
-              <button className="btn btn-warning btn-sm" onClick={handleClaimOrphans} style={{ gap: '0.4rem' }}>
+              <button className="btn btn-primary btn-sm" onClick={handleClaimOrphans} style={{ gap: '0.4rem' }}>
                 <TbDatabaseImport className="icon-spin" /> Recover Old Data
               </button>
               <select className="sort-select" value={sort} onChange={(e) => setSort(e.target.value)}>
