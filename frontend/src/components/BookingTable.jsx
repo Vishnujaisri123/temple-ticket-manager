@@ -10,7 +10,6 @@ import {
   FiEdit2,
   FiCalendar,
   FiDollarSign,
-  FiFileText,
   FiTrash2,
   FiCheck,
   FiX,
@@ -101,10 +100,6 @@ const BookingTable = ({ bookings, setBookings }) => {
     } catch {
       toast('Failed to delete', 'error');
     }
-  };
-
-  const handleUploaded = (id, updatedBooking) => {
-    setBookings((prev) => prev.map((b) => (b._id === id ? { ...b, ...updatedBooking } : b)));
   };
 
   const onSent = (updated) => setBookings((prev) => prev.map((x) => x._id === updated._id ? updated : x));

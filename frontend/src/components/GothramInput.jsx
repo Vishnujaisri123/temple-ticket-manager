@@ -117,11 +117,11 @@ const GothramInput = ({ value, onChange, onBlur, placeholder = 'Search gothram..
       />
       {open && suggestions.length > 0 && (
         <ul style={{
-          position: 'absolute', top: '100%', left: 0, right: 0,
+          position: 'absolute', bottom: '100%', left: 0, right: 0,
           background: 'var(--surface)', border: '1.5px solid var(--primary)',
-          borderRadius: '0 0 8px 8px', maxHeight: '180px', overflowY: 'auto',
+          borderRadius: '8px 8px 0 0', maxHeight: '180px', overflowY: 'auto',
           zIndex: 1000, margin: 0, padding: 0, listStyle: 'none',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+          boxShadow: '0 -4px 12px rgba(0,0,0,0.25)',
         }}>
           {suggestions.map((g, i) => (
             <li

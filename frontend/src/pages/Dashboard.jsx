@@ -21,20 +21,13 @@ import { HiOutlineDocumentReport, HiTrendingUp } from 'react-icons/hi';
 import { MdPhoneAndroid } from 'react-icons/md';
 import { TbCash, TbDatabaseImport } from 'react-icons/tb';
 
-const FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 'paid', label: 'Paid' },
-  { key: 'unpaid', label: 'Unpaid' },
-  { key: 'sent', label: 'Sent' },
-  { key: 'pending', label: 'Pending' },
-  { key: 'reminder', label: 'Reminders' },
-];
+
 
 const Dashboard = () => {
   const { username, logout } = useAuth();
   const [page, setPage] = useState('dashboard'); // 'dashboard' | 'history'
   const [bookings, setBookings] = useState([]);
-  const [filter, setFilter] = useState('all');
+  const filter = 'all';
   const [sort, setSort] = useState('asc');
   const [stats, setStats] = useState({ overall: {}, admins: [], today: {}, weekly: {} });
   const [loading, setLoading] = useState(true);
@@ -94,10 +87,7 @@ const Dashboard = () => {
     return () => window.removeEventListener('bookingUpdated', handleBookingUpdated);
   }, []);
 
-  const handleAutoUploaded = (updatedBooking) => {
-    // Update booking in local state immediately so PDF button appears
-    setBookings((prev) => prev.map((b) => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));
-  };
+
 
   const handleClaimOrphans = async () => {
     if (window.confirm('Do you want to recover old bookings that are not visible? This will assign them to your account.')) {
