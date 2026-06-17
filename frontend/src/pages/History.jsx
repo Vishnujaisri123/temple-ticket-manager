@@ -14,7 +14,6 @@ const fmtTime = (d) => d ? new Date(d).toLocaleString('en-IN', {
 const History = () => {
   const [completed, setCompleted] = useState([]);
   const [sent, setSent] = useState([]);
-  const [puja, setPuja] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('completed');
   const [sort, setSort] = useState('desc');
@@ -24,14 +23,12 @@ const History = () => {
   const fetchHistory = useCallback(async () => {
     setLoading(true);
     try {
-      const [completedRes, sentRes, pujaRes] = await Promise.all([
+      const [completedRes, sentRes] = await Promise.all([
         getBookings({ status: 'history_completed', sort }),
         getBookings({ status: 'sent', sort }),
-        getBookings({ status: 'puja_completed', sort }),
       ]);
       setCompleted(completedRes.data);
       setSent(sentRes.data);
-      setPuja(pujaRes.data);
     } catch (err) {
       toast(err.response?.data?.message || 'Failed to load history', 'error');
     } finally {
@@ -57,7 +54,6 @@ const History = () => {
       const updated = e.detail;
       setCompleted((prev) => prev.map((b) => b._id === updated._id ? { ...b, ...updated } : b));
       setSent((prev) => prev.map((b) => b._id === updated._id ? { ...b, ...updated } : b));
-      setPuja((prev) => prev.map((b) => b._id === updated._id ? { ...b, ...updated } : b));
     };
     window.addEventListener('bookingUpdated', handleBookingUpdated);
     return () => window.removeEventListener('bookingUpdated', handleBookingUpdated);
@@ -66,27 +62,8 @@ const History = () => {
   const saveField = useCallback(async (id, field, value, type) => {
     try {
       const { data } = await updateBooking(id, { [field]: value });
-      
-      // Handle moving between lists for pujaGroceryDone
-      if (field === 'pujaGroceryDone') {
-        if (value === true) {
-          setSent((prev) => prev.filter((b) => b._id !== id));
-          setPuja((prev) => [data, ...prev]);
-          setActiveTab('puja');
-        } else {
-          setPuja((prev) => prev.filter((b) => b._id !== id));
-          setSent((prev) => [data, ...prev]);
-          setActiveTab('sent');
-        }
-        window.dispatchEvent(new Event('statsUpdated'));
-      } else {
-        if (field === 'pujaGroceryPaymentMethod') {
-          window.dispatchEvent(new Event('statsUpdated'));
-        }
-        if (type === 'completed') setCompleted((prev) => prev.map((b) => b._id === id ? data : b));
-        else if (type === 'sent') setSent((prev) => prev.map((b) => b._id === id ? data : b));
-        else if (type === 'puja') setPuja((prev) => prev.map((b) => b._id === id ? data : b));
-      }
+      if (type === 'completed') setCompleted((prev) => prev.map((b) => b._id === id ? data : b));
+      else if (type === 'sent') setSent((prev) => prev.map((b) => b._id === id ? data : b));
     } catch { toast('Failed to update', 'error'); }
   }, []);
 
@@ -96,7 +73,6 @@ const History = () => {
       await deleteBooking(id);
       if (type === 'completed') setCompleted((prev) => prev.filter((b) => b._id !== id));
       else if (type === 'sent') setSent((prev) => prev.filter((b) => b._id !== id));
-      else if (type === 'puja') setPuja((prev) => prev.filter((b) => b._id !== id));
       toast('Deleted successfully');
     } catch {
       toast('Failed to delete', 'error');
@@ -106,7 +82,6 @@ const History = () => {
   const handleUploaded = (id, updatedBooking) => {
     setCompleted((prev) => prev.map((b) => b._id === id ? { ...b, ...updatedBooking } : b));
     setSent((prev) => prev.map((b) => b._id === id ? { ...b, ...updatedBooking } : b));
-    setPuja((prev) => prev.map((b) => b._id === id ? { ...b, ...updatedBooking } : b));
   };
 
   const handleSent = (updated) => {
@@ -116,7 +91,6 @@ const History = () => {
       if (exists) return prev.map((b) => b._id === updated._id ? updated : b);
       return [updated, ...prev];
     });
-    setPuja((prev) => prev.map((b) => b._id === updated._id ? updated : b));
   };
 
   const handleRecoverOldData = async () => {
@@ -134,7 +108,6 @@ const History = () => {
     // If it matched a booking in any tab, update it
     setCompleted((prev) => prev.map((b) => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));
     setSent((prev) => prev.map((b) => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));
-    setPuja((prev) => prev.map((b) => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));
   };
 
   const handlePhoneSave = (booking, type) => {
@@ -146,7 +119,6 @@ const History = () => {
   const tabs = [
     { key: 'completed', label: '✅ Completed & Paid', count: completed.length },
     { key: 'sent', label: '📤 Sent Tickets', count: sent.length },
-    { key: 'puja', label: '🥥 Puja Persons', count: puja.length },
   ];
 
   const filterData = (list) => {
@@ -158,7 +130,7 @@ const History = () => {
     );
   };
 
-  const data = filterData(activeTab === 'completed' ? completed : activeTab === 'sent' ? sent : puja);
+  const data = filterData(activeTab === 'completed' ? completed : sent);
 
   const PhoneCell = ({ b }) => (
     editingPhone[b._id] !== undefined ? (
@@ -219,10 +191,6 @@ const History = () => {
           <span className="stat-icon">📤</span>
           <div className="stat-info"><div className="label">Tickets Sent</div><div className="value">{sent.length}</div></div>
         </div>
-        <div className="stat-card">
-          <span className="stat-icon">🥥</span>
-          <div className="stat-info"><div className="label">Puja Done</div><div className="value">{puja.length}</div></div>
-        </div>
       </div>
 
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
@@ -239,8 +207,8 @@ const History = () => {
       ) : data.length === 0 ? (
         <div className="table-wrapper">
           <div className="empty-state">
-            <div className="icon">{activeTab === 'completed' ? '✅' : activeTab === 'sent' ? '📤' : '🥥'}</div>
-            <p>{activeTab === 'completed' ? 'No completed & paid bookings yet.' : activeTab === 'sent' ? 'No sent tickets yet.' : 'No completed puja persons yet.'}</p>
+            <div className="icon">{activeTab === 'completed' ? '✅' : '📤'}</div>
+            <p>{activeTab === 'completed' ? 'No completed & paid bookings yet.' : 'No sent tickets yet.'}</p>
           </div>
         </div>
       ) : (() => {
@@ -257,12 +225,12 @@ const History = () => {
           return sort === 'asc' ? dateA - dateB : dateB - dateA;
         });
 
-        const totalCols = (activeTab === 'sent' || activeTab === 'puja') ? 15 : 11;
+        const totalCols = (activeTab === 'sent') ? 12 : 11;
 
         return (
           <>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
-              <PrintButton bookings={data} title={activeTab === 'completed' ? 'Completed & Paid' : activeTab === 'sent' ? 'Sent Tickets' : 'Puja Persons'} />
+              <PrintButton bookings={data} title={activeTab === 'completed' ? 'Completed & Paid' : 'Sent Tickets'} />
             </div>
 
             {/* Desktop Table */}
@@ -274,11 +242,8 @@ const History = () => {
                       <th>#</th><th>Bookers Date</th><th>Booked Date</th><th>Phone</th>
                       <th>Gothram</th><th>Member 1</th><th>Member 2</th>
                       <th>💰 Paid</th><th>✅ Done</th>
-                      {(activeTab === 'sent' || activeTab === 'puja') && (
-                        <>
-                          <th>🥥 Puja Grocery</th><th>💳 Puja Payment</th><th>🥥 Puja Done</th>
-                          <th>📤 Sent At</th>
-                        </>
+                      {activeTab === 'sent' && (
+                        <th>📤 Sent At</th>
                       )}
                       <th>📎 PDF</th><th>Actions</th>
                     </tr>
@@ -325,19 +290,10 @@ const History = () => {
                           <td>{b.member2 || '—'}</td>
                           <td className="checkbox-cell" onClick={() => saveField(b._id, 'paid', !b.paid, activeTab)} style={{ cursor: 'pointer' }}><span style={{ color: b.paid ? 'var(--success)' : 'var(--danger)' }}>{b.paid ? '✅' : '❌'}</span></td>
                           <td className="checkbox-cell" onClick={() => saveField(b._id, 'completed', !b.completed, activeTab)} style={{ cursor: 'pointer' }}><span style={{ color: b.completed ? 'var(--success)' : 'var(--danger)' }}>{b.completed ? '✅' : '❌'}</span></td>
-                          {(activeTab === 'sent' || activeTab === 'puja') && (
-                            <>
-                              <td className="checkbox-cell"><input type="checkbox" checked={b.pujaGrocery} onChange={() => saveField(b._id, 'pujaGrocery', !b.pujaGrocery, activeTab)} /></td>
-                              <td>
-                                <select value={b.pujaGroceryPaymentMethod || ''} onChange={(e) => saveField(b._id, 'pujaGroceryPaymentMethod', e.target.value, activeTab)} style={{ border: '1px solid var(--border)', borderRadius: '4px', padding: '0.25rem 0.4rem', fontSize: '0.78rem', background: b.pujaGroceryPaymentMethod === 'phonepe' ? '#e8f4fd' : b.pujaGroceryPaymentMethod === 'cash' ? '#e8f5e9' : '#fff' }}>
-                                  <option value="">— Select —</option><option value="phonepe">📱 PhonePe</option><option value="cash">💵 Cash</option>
-                                </select>
-                              </td>
-                              <td className="checkbox-cell"><input type="checkbox" checked={b.pujaGroceryDone} onChange={() => saveField(b._id, 'pujaGroceryDone', !b.pujaGroceryDone, activeTab)} /></td>
-                              <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
-                                {b.sentAt ? <span style={{ color: 'var(--success)', fontWeight: 600 }}>📤 {fmtTime(b.sentAt)}</span> : '—'}
-                              </td>
-                            </>
+                          {activeTab === 'sent' && (
+                            <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                              {b.sentAt ? <span style={{ color: 'var(--success)', fontWeight: 600 }}>📤 {fmtTime(b.sentAt)}</span> : '—'}
+                            </td>
                           )}
                           <td><UploadCell booking={b} onUploaded={handleUploaded} /></td>
                           <td>
@@ -360,90 +316,78 @@ const History = () => {
               {sortedDateKeys.map((dateKey) => (
                 <div key={dateKey} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <div style={{ background: 'var(--primary)', color: '#fff', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>📅 Visit Date: {dateKey}</span>
-                    <span style={{ background: 'rgba(255,255,255,0.25)', padding: '0.1rem 0.5rem', borderRadius: '10px', fontSize: '0.75rem' }}>{groups[dateKey].length} Booking{groups[dateKey].length > 1 ? 's' : ''}</span>
-                  </div>
-                  {groups[dateKey].map((b) => (
-                    <div key={b._id} className={`booking-card${activeTab === 'sent' ? ' sent-card' : ''}`}>
-                      <div className="booking-card-header">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                          <div className="card-serial">{b.serialNo}</div>
-                          <div>
-                            <div className="card-name">{b.member1}{b.member2 ? ` & ${b.member2}` : ''}</div>
-                            <div className="card-date">📅 Booked: {fmt(b.visitDate)} {b.slotTime && `| ⏱️ ${b.slotTime}`}</div>
-                          </div>
-                        </div>
-                        <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }}
-                          onClick={() => handleDelete(b._id, activeTab)}>🗑️</button>
-                      </div>
-                      <div className="booking-card-body">
-                        <div className="card-row">
-                          <span className="card-label">📞 Phone</span>
-                          <PhoneCell b={b} />
-                        </div>
-                        {b.gothram && <div className="card-row"><span className="card-label">🏛️ Gothram</span><span className="card-value">{b.gothram}</span></div>}
-                        <div className="card-row"><span className="card-label">👤 Member 1</span><span className="card-value" style={{ fontWeight: 600 }}>{b.member1}</span></div>
-                        {b.member2 && <div className="card-row"><span className="card-label">👤 Member 2</span><span className="card-value">{b.member2}</span></div>}
-                        <div className="card-row"><span className="card-label">📅 Bookers Date</span><span className="card-value">{fmt(b.bookingDate)}</span></div>
-                        <div className="card-row">
-                          <span className="card-label">⏱️ Timeslot</span>
-                          <select
-                            value={b.slotTime || ''}
-                            onChange={(e) => saveField(b._id, 'slotTime', e.target.value, activeTab)}
-                            style={{
-                              border: '1px solid var(--border)',
-                              borderRadius: '4px',
-                              padding: '0.2rem 0.4rem',
-                              fontSize: '0.78rem',
-                              background: 'var(--surface)',
-                              color: 'var(--text)',
-                              width: '120px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <option value="">— Slot —</option>
-                            <option value="6am-7am">6am-7am</option>
-                            <option value="7am-8am">7am-8am</option>
-                            <option value="8am-9am">8am-9am</option>
-                            <option value="9am-10am">9am-10am</option>
-                          </select>
-                        </div>
-                        <div className="card-row"><span className="card-label">💰 Paid</span><span className="card-value" onClick={() => saveField(b._id, 'paid', !b.paid, activeTab)} style={{ cursor: 'pointer' }}>{b.paid ? '✅ Yes' : '❌ No'}</span></div>
-                        <div className="card-row"><span className="card-label">✅ Done</span><span className="card-value" onClick={() => saveField(b._id, 'completed', !b.completed, activeTab)} style={{ cursor: 'pointer' }}>{b.completed ? '✅ Yes' : '❌ No'}</span></div>
-                        {(activeTab === 'sent' || activeTab === 'puja') && (
-                          <>
-                            <div className="card-row"><span className="card-label">🥥 Puja Grocery</span><span className="card-value"><input type="checkbox" checked={b.pujaGrocery} onChange={() => saveField(b._id, 'pujaGrocery', !b.pujaGrocery, activeTab)} /></span></div>
-                            <div className="card-row">
-                              <span className="card-label">🥥 Puja Payment</span>
-                              <select value={b.pujaGroceryPaymentMethod || ''} onChange={(e) => saveField(b._id, 'pujaGroceryPaymentMethod', e.target.value, activeTab)} style={{ border: '1px solid var(--border)', borderRadius: '4px', padding: '0.25rem 0.4rem', fontSize: '0.78rem', background: b.pujaGroceryPaymentMethod === 'phonepe' ? '#e8f4fd' : b.pujaGroceryPaymentMethod === 'cash' ? '#e8f5e9' : '#fff', color: 'var(--text)', cursor: 'pointer', width: '100px' }}>
-                                <option value="">— Select —</option><option value="phonepe">📱 PhonePe</option><option value="cash">💵 Cash</option>
-                              </select>
-                            </div>
-                            <div className="card-row"><span className="card-label">🥥 Puja Done</span><span className="card-value"><input type="checkbox" checked={b.pujaGroceryDone} onChange={() => saveField(b._id, 'pujaGroceryDone', !b.pujaGroceryDone, activeTab)} /></span></div>
-                            {b.sentAt && (
-                              <div className="card-row">
-                                <span className="card-label">📤 Sent At</span>
-                                <span className="card-value" style={{ color: 'var(--success)', fontWeight: 600, fontSize: '0.78rem' }}>{fmtTime(b.sentAt)}</span>
-                              </div>
-                            )}
-                          </>
-                        )}
-                        <div style={{ paddingTop: '0.5rem' }}><UploadCell booking={b} onUploaded={handleUploaded} /></div>
-                      </div>
-                      <div className="card-actions">
-                        <SendButton booking={b} onSent={handleSent} />
-                        <SendButton booking={b} isReminder onSent={handleSent} />
-                      </div>
-                    </div>
-                  ))}
+                  <span>📅 Visit Date: {dateKey}</span>
+                  <span style={{ background: 'rgba(255,255,255,0.25)', padding: '0.1rem 0.5rem', borderRadius: '10px', fontSize: '0.75rem' }}>{groups[dateKey].length} Booking{groups[dateKey].length > 1 ? 's' : ''}</span>
                 </div>
-              ))}
-            </div>
-          </>
-        );
-      })()}
-    </div>
-  );
+                {groups[dateKey].map((b) => (
+                  <div key={b._id} className={`booking-card${activeTab === 'sent' ? ' sent-card' : ''}`}>
+                    <div className="booking-card-header">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <div className="card-serial">{b.serialNo}</div>
+                        <div>
+                          <div className="card-name">{b.member1}{b.member2 ? ` & ${b.member2}` : ''}</div>
+                          <div className="card-date">📅 Booked: {fmt(b.visitDate)} {b.slotTime && `| ⏱️ ${b.slotTime}`}</div>
+                        </div>
+                      </div>
+                      <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }}
+                        onClick={() => handleDelete(b._id, activeTab)}>🗑️</button>
+                    </div>
+                    <div className="booking-card-body">
+                      <div className="card-row">
+                        <span className="card-label">📞 Phone</span>
+                        <PhoneCell b={b} />
+                      </div>
+                      {b.gothram && <div className="card-row"><span className="card-label">🏛️ Gothram</span><span className="card-value">{b.gothram}</span></div>}
+                      <div className="card-row"><span className="card-label">👤 Member 1</span><span className="card-value" style={{ fontWeight: 600 }}>{b.member1}</span></div>
+                      {b.member2 && <div className="card-row"><span className="card-label">👤 Member 2</span><span className="card-value">{b.member2}</span></div>}
+                      <div className="card-row"><span className="card-label">📅 Bookers Date</span><span className="card-value">{fmt(b.bookingDate)}</span></div>
+                      <div className="card-row">
+                        <span className="card-label">⏱️ Timeslot</span>
+                        <select
+                          value={b.slotTime || ''}
+                          onChange={(e) => saveField(b._id, 'slotTime', e.target.value, activeTab)}
+                          style={{
+                            border: '1px solid var(--border)',
+                            borderRadius: '4px',
+                            padding: '0.2rem 0.4rem',
+                            fontSize: '0.78rem',
+                            background: 'var(--surface)',
+                            color: 'var(--text)',
+                            width: '120px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <option value="">— Slot —</option>
+                          <option value="6am-7am">6am-7am</option>
+                          <option value="7am-8am">7am-8am</option>
+                          <option value="8am-9am">8am-9am</option>
+                          <option value="9am-10am">9am-10am</option>
+                        </select>
+                      </div>
+                      <div className="card-row"><span className="card-label">💰 Paid</span><span className="card-value" onClick={() => saveField(b._id, 'paid', !b.paid, activeTab)} style={{ cursor: 'pointer' }}>{b.paid ? '✅ Yes' : '❌ No'}</span></div>
+                      <div className="card-row"><span className="card-label">✅ Done</span><span className="card-value" onClick={() => saveField(b._id, 'completed', !b.completed, activeTab)} style={{ cursor: 'pointer' }}>{b.completed ? '✅ Yes' : '❌ No'}</span></div>
+                      {activeTab === 'sent' && b.sentAt && (
+                        <div className="card-row">
+                          <span className="card-label">📤 Sent At</span>
+                          <span className="card-value" style={{ color: 'var(--success)', fontWeight: 600, fontSize: '0.78rem' }}>{fmtTime(b.sentAt)}</span>
+                        </div>
+                      )}
+                      <div style={{ paddingTop: '0.5rem' }}><UploadCell booking={b} onUploaded={handleUploaded} /></div>
+                    </div>
+                    <div className="card-actions">
+                      <SendButton booking={b} onSent={handleSent} />
+                      <SendButton booking={b} isReminder onSent={handleSent} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
+      );
+    })()}
+  </div>
+);
 };
 
 export default History;

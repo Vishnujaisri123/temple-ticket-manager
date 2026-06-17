@@ -47,14 +47,8 @@ const getWeeklyStats = async (adminId) => {
     cashAmount: 0,
     paidCount: 0,
     sentCount: 0,
-    pujaCount: 0,
-    pujaProfit: 0,
-    pujaPhonepeAmount: 0,
-    pujaCashAmount: 0,
     count: bookings.length
   };
-
-  const pujaProfitValue = 200;
 
   bookings.forEach(b => {
     const amt = b.amount || 200;
@@ -67,13 +61,6 @@ const getWeeklyStats = async (adminId) => {
 
     if (b.paymentMethod === 'phonepe') stats.phonepeAmount += amt;
     if (b.paymentMethod === 'cash') stats.cashAmount += amt;
-
-    if (b.pdfSent && b.pujaGroceryDone) {
-      stats.pujaCount++;
-      stats.pujaProfit += pujaProfitValue;
-      if (b.pujaGroceryPaymentMethod === 'phonepe') stats.pujaPhonepeAmount += pujaProfitValue;
-      if (b.pujaGroceryPaymentMethod === 'cash') stats.pujaCashAmount += pujaProfitValue;
-    }
   });
 
   return stats;

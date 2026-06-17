@@ -1,6 +1,5 @@
 const PrintButton = ({ bookings, title = 'All Bookings' }) => {
   const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN') : '—';
-  const isPujaPersons = title === 'Puja Persons';
 
   const handlePrint = () => {
     const rows = bookings.map((b, i) => {
@@ -18,15 +17,9 @@ const PrintButton = ({ bookings, title = 'All Bookings' }) => {
         <td style="text-align:center">${b.pdfSent ? '✅' : '❌'}</td>
       `;
       
-      const pujaColumns = isPujaPersons ? `
-        <td style="text-align:center">${b.pujaGrocery ? '✅' : '❌'}</td>
-        <td style="text-align:center">${b.pujaGroceryPaymentMethod === 'phonepe' ? '📱 PhonePe' : b.pujaGroceryPaymentMethod === 'cash' ? '💵 Cash' : '—'}</td>
-        <td style="text-align:center">${b.pujaGroceryDone ? '✅' : '❌'}</td>
-      ` : '';
-      
       return `
         <tr style="background:${i % 2 === 0 ? '#fff' : '#fdf6f0'}">
-          ${baseRow}${pujaColumns}
+          ${baseRow}
         </tr>
       `;
     }).join('');
@@ -78,10 +71,6 @@ const PrintButton = ({ bookings, title = 'All Bookings' }) => {
               <th>Payment</th>
               <th>Done</th>
               <th>Sent</th>
-              ${isPujaPersons ? '<th>Puja Grocery</th><th>Puja Payment</th><th>Puja Done</th>' : ''}
-            </tr>
-          </thead>
-              ${isPujaPersons ? '<th>Puja Grocery</th><th>Puja Payment</th><th>Puja Done</th>' : ''}
             </tr>
           </thead>
           <tbody>${rows}</tbody>

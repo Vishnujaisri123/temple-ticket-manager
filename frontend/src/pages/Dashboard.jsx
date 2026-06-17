@@ -163,13 +163,7 @@ const Dashboard = () => {
                   <div className="stat-card cash" style={{ padding: '1rem' }}>
                     <div className="stat-info"><div className="label">Cash</div><div className="value" style={{ fontSize: '1.2rem' }}>₹{stats.overall.cashAmount || 0}</div></div>
                   </div>
-                  <div className="stat-card" style={{ padding: '1rem' }}>
-                    <div className="stat-info"><div className="label">Total Puja</div><div className="value" style={{ fontSize: '1.2rem' }}>{stats.overall.pujaCount || 0}</div></div>
                   </div>
-                  <div className="stat-card money" style={{ padding: '1rem' }}>
-                    <div className="stat-info"><div className="label">Puja Profit</div><div className="value" style={{ fontSize: '1.2rem' }}>₹{stats.overall.pujaProfit || 0}</div></div>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -261,24 +255,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="stats-bar">
-            <div className="stat-card">
-              <span className="stat-icon">🥥</span>
-              <div className="stat-info"><div className="label">Puja Persons (Weekly)</div><div className="value">{stats.weekly?.pujaCount || 0}</div></div>
-            </div>
-            <div className="stat-card">
-              <span className="stat-icon">💰</span>
-              <div className="stat-info"><div className="label">Puja Profit (Weekly)</div><div className="value">₹{stats.weekly?.pujaProfit || 0}</div></div>
-            </div>
-            <div className="stat-card phonepe">
-              <span className="stat-icon">📱</span>
-              <div className="stat-info"><div className="label">Puja PhonePe (Weekly)</div><div className="value">₹{stats.weekly?.pujaPhonepeAmount || 0}</div></div>
-            </div>
-            <div className="stat-card cash">
-              <span className="stat-icon">💵</span>
-              <div className="stat-info"><div className="label">Puja Cash (Weekly)</div><div className="value">₹{stats.weekly?.pujaCashAmount || 0}</div></div>
-            </div>
-          </div>
+
 
           <AddBookingForm onAdded={(b) => setBookings((prev) => [b, ...prev])} />
 

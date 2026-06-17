@@ -28,10 +28,6 @@ const getAll = async (req, res) => {
     filter.pdfSent = false;
   } else if (status === 'sent') {
     filter.pdfSent = true;
-    filter.pujaGroceryDone = { $ne: true };
-  } else if (status === 'puja_completed') {
-    filter.pdfSent = true;
-    filter.pujaGroceryDone = true;
   } else if (status === 'history_completed') {
     filter.completed = true;
     filter.paid = true;
@@ -284,22 +280,14 @@ const getStats = async (req, res) => {
     let cashAmount = 0;
     let sentCount = 0;
     let paidCount = 0;
-    let pujaCount = 0;
-    let pujaProfit = 0;
-    let pujaPhonepeAmount = 0;
-    let pujaCashAmount = 0;
     
     const adminStats = {};
     const dailyStats = {};
     const todayKey = new Date().toISOString().split('T')[0];
     const todayStats = {
       totalAmount: 0, totalProfit: 0, phonepeAmount: 0, cashAmount: 0,
-      paidCount: 0, sentCount: 0, pujaCount: 0, pujaProfit: 0,
-      pujaPhonepeAmount: 0, pujaCashAmount: 0, count: 0
+      paidCount: 0, sentCount: 0, count: 0
     };
-
-    const pujaProfitValue = 200;
-    const pujaBookings = [];
 
     allBookings.forEach(b => {
       const amt = b.amount || 200;
@@ -312,10 +300,6 @@ const getStats = async (req, res) => {
       
       if (b.paymentMethod === 'phonepe') phonepeAmount += amt;
       if (b.paymentMethod === 'cash') cashAmount += amt;
-      
-      if (b.pdfSent && b.pujaGroceryDone) {
-        pujaBookings.push(b);
-      }
       
       const dateKey = b.bookingDate ? b.bookingDate.toISOString().split('T')[0] : 'Unknown';
       if (!dailyStats[dateKey]) {
@@ -342,12 +326,6 @@ const getStats = async (req, res) => {
         if (b.pdfSent) todayStats.sentCount++;
         if (b.paymentMethod === 'phonepe') todayStats.phonepeAmount += amt;
         if (b.paymentMethod === 'cash') todayStats.cashAmount += amt;
-        if (b.pdfSent && b.pujaGroceryDone) {
-          todayStats.pujaCount++;
-          todayStats.pujaProfit += pujaProfitValue;
-          if (b.pujaGroceryPaymentMethod === 'phonepe') todayStats.pujaPhonepeAmount += pujaProfitValue;
-          if (b.pujaGroceryPaymentMethod === 'cash') todayStats.pujaCashAmount += pujaProfitValue;
-        }
       }
       
       if (b.createdBy) {
@@ -366,11 +344,6 @@ const getStats = async (req, res) => {
       }
     });
 
-    pujaCount = pujaBookings.length;
-    pujaProfit = pujaCount * pujaProfitValue;
-    pujaPhonepeAmount = pujaBookings.reduce((sum, b) => sum + (b.pujaGroceryPaymentMethod === 'phonepe' ? pujaProfitValue : 0), 0);
-    pujaCashAmount = pujaBookings.reduce((sum, b) => sum + (b.pujaGroceryPaymentMethod === 'cash' ? pujaProfitValue : 0), 0);
-
     res.json({
       today: todayStats,
       weekly: weeklyStats,
@@ -381,10 +354,6 @@ const getStats = async (req, res) => {
         cashAmount,
         paidCount,
         sentCount,
-        pujaCount,
-        pujaProfit,
-        pujaPhonepeAmount,
-        pujaCashAmount,
         count: allBookings.length
       },
       admins: Object.values(adminStats),
