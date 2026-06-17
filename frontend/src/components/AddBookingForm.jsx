@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createBooking } from '../services/api';
 import { toast } from './Toast';
 import GothramInput from './GothramInput';
+import { FiPlus, FiChevronUp, FiChevronDown } from 'react-icons/fi';
 
 const defaultForm = {
   bookingDate: new Date().toISOString().split('T')[0],
@@ -61,9 +62,9 @@ const AddBookingForm = ({ onAdded }) => {
   return (
     <div className="add-booking-bar">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3>➕ New Booking</h3>
-        <button className="btn btn-outline btn-sm" onClick={() => setOpen(!open)}>
-          {open ? '▲ Hide' : '▼ Expand'}
+        <h3 style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><FiPlus /> New Booking</h3>
+        <button className="btn btn-outline btn-sm" onClick={() => setOpen(!open)} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+          {open ? <><FiChevronUp /> Hide</> : <><FiChevronDown /> Expand</>}
         </button>
       </div>
       {open && (
@@ -107,8 +108,8 @@ const AddBookingForm = ({ onAdded }) => {
               <input type="text" name="member2" value={form.member2} onChange={handleChange} placeholder="Optional" />
             </div>
             <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-                {loading ? 'Adding...' : '+ Add Booking'}
+              <button type="submit" className="btn btn-primary btn-full" disabled={loading} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                {loading ? 'Adding...' : <><FiPlus /> Add Booking</>}
               </button>
             </div>
           </div>

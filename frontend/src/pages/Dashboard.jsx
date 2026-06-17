@@ -5,14 +5,29 @@ import { toast } from '../components/Toast';
 import BookingTable from '../components/BookingTable';
 import AddBookingForm from '../components/AddBookingForm';
 import History from './History';
+import {
+  FiActivity,
+  FiUser,
+  FiSun,
+  FiMoon,
+  FiClipboard,
+  FiCalendar,
+  FiDollarSign,
+  FiCheckCircle,
+  FiSend,
+} from 'react-icons/fi';
+import { LuLayoutDashboard, LuHistory } from 'react-icons/lu';
+import { HiOutlineDocumentReport, HiTrendingUp } from 'react-icons/hi';
+import { MdPhoneAndroid } from 'react-icons/md';
+import { TbCash, TbDatabaseImport } from 'react-icons/tb';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
-  { key: 'paid', label: '💰 Paid' },
-  { key: 'unpaid', label: '❌ Unpaid' },
-  { key: 'sent', label: '📤 Sent' },
-  { key: 'pending', label: '⏳ Pending' },
-  { key: 'reminder', label: '🔔 Reminders' },
+  { key: 'paid', label: 'Paid' },
+  { key: 'unpaid', label: 'Unpaid' },
+  { key: 'sent', label: 'Sent' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'reminder', label: 'Reminders' },
 ];
 
 const Dashboard = () => {
@@ -109,7 +124,9 @@ const Dashboard = () => {
       <nav className="navbar">
         <div className="navbar-top">
           <div className="navbar-brand">
-            <span className="icon">🕌</span>
+            <span className="icon">
+              <FiActivity className="icon-glow icon-pulse" style={{ color: 'var(--accent)' }} />
+            </span>
             <div>
               <h1>Temple Ticket Manager</h1>
               <span>Sri Venkateswara Swami Temple, Vadapalli</span>
@@ -119,15 +136,23 @@ const Dashboard = () => {
         </div>
         <div className="navbar-bottom">
           <div className="nav-tabs">
-            <button className={`nav-tab ${page === 'dashboard' ? 'active' : ''}`} onClick={() => setPage('dashboard')}>📋 Dashboard</button>
-            <button className={`nav-tab ${page === 'history' ? 'active' : ''}`} onClick={() => setPage('history')}>📜 History</button>
-            <button className={`nav-tab ${page === 'daily' ? 'active' : ''}`} onClick={() => setPage('daily')}>📊 Reports</button>
+            <button className={`nav-tab ${page === 'dashboard' ? 'active' : ''}`} onClick={() => setPage('dashboard')}>
+              <LuLayoutDashboard className="icon-hover-scale" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} /> Dashboard
+            </button>
+            <button className={`nav-tab ${page === 'history' ? 'active' : ''}`} onClick={() => setPage('history')}>
+              <LuHistory className="icon-hover-scale" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} /> History
+            </button>
+            <button className={`nav-tab ${page === 'daily' ? 'active' : ''}`} onClick={() => setPage('daily')}>
+              <HiOutlineDocumentReport className="icon-hover-scale" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} /> Reports
+            </button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button className="btn-mode" onClick={() => setDarkMode(!darkMode)}>
-              {darkMode ? '☀️' : '🌙'}
+              {darkMode ? <FiSun className="icon-spin" /> : <FiMoon className="icon-pulse" />}
             </button>
-            <span className="user">👤 {username}</span>
+            <span className="user" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+              <FiUser /> {username}
+            </span>
             <button className="btn-logout btn-logout-desktop" onClick={logout}>Logout</button>
           </div>
         </div>
@@ -147,9 +172,13 @@ const Dashboard = () => {
           </div>
           {stats.overall && (
             <div className="admin-stat-card" style={{ marginBottom: '2rem', border: '2px solid var(--primary-color)' }}>
-              <div className="admin-name" style={{ fontSize: '1.2rem', color: 'var(--primary-color)' }}>🌟 Lifetime Overall Stats</div>
+              <div className="admin-name" style={{ fontSize: '1.2rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <FiActivity className="icon-glow" style={{ color: 'var(--accent)' }} /> Lifetime Overall Stats
+              </div>
               <div className="admin-details">
-                <span style={{ fontSize: '1rem', marginBottom: '1rem', display: 'block' }}>🎟️ {stats.overall.count || 0} total tickets entered</span>
+                <span style={{ fontSize: '1rem', marginBottom: '1rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <FiClipboard /> {stats.overall.count || 0} total tickets entered
+                </span>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
                   <div className="stat-card money" style={{ padding: '1rem' }}>
                     <div className="stat-info"><div className="label">Total Amount</div><div className="value" style={{ fontSize: '1.2rem' }}>₹{stats.overall.totalAmount || 0}</div></div>
@@ -163,7 +192,7 @@ const Dashboard = () => {
                   <div className="stat-card cash" style={{ padding: '1rem' }}>
                     <div className="stat-info"><div className="label">Cash</div><div className="value" style={{ fontSize: '1.2rem' }}>₹{stats.overall.cashAmount || 0}</div></div>
                   </div>
-                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -172,9 +201,13 @@ const Dashboard = () => {
             <div className="daily-grid">
               {stats.daily.map(day => (
                 <div key={day.date} className="admin-stat-card">
-                  <div className="admin-name" style={{ fontSize: '1.1rem' }}>📅 {new Date(day.date).toLocaleDateString('en-GB')}</div>
+                  <div className="admin-name" style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <FiCalendar /> {new Date(day.date).toLocaleDateString('en-GB')}
+                  </div>
                   <div className="admin-details">
-                    <span style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>🎟️ {day.count} tickets entered</span>
+                    <span style={{ fontSize: '0.9rem', marginBottom: '0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <FiClipboard /> {day.count} tickets entered
+                    </span>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                       <div className="stat-card money" style={{ padding: '0.5rem', minWidth: '0' }}>
                         <div className="stat-info"><div className="label">Amount</div><div className="value" style={{ fontSize: '1rem' }}>₹{day.totalAmount}</div></div>
@@ -195,7 +228,9 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="empty-state">
-              <div className="icon">📊</div>
+              <div className="icon">
+                <HiOutlineDocumentReport style={{ fontSize: '3rem', color: 'var(--text-muted)' }} />
+              </div>
               <p>No daily data available</p>
             </div>
           )}
@@ -209,12 +244,12 @@ const Dashboard = () => {
             </div>
             <div className="controls">
               <button className="btn btn-warning btn-sm" onClick={handleClaimOrphans} style={{ gap: '0.4rem' }}>
-                🔄 Recover Old Data
+                <TbDatabaseImport className="icon-spin" /> Recover Old Data
               </button>
               <select className="sort-select" value={sort} onChange={(e) => setSort(e.target.value)}>
                 <option value="asc">Visit Date ↑</option>
                 <option value="desc">Visit Date ↓</option>
-                <option value="phone">📞 Phone Number</option>
+                <option value="phone">Phone Number</option>
               </select>
             </div>
           </div>
@@ -223,34 +258,34 @@ const Dashboard = () => {
 
           <div className="stats-bar financial-stats">
             <div className="stat-card money">
-              <span className="stat-icon">💰</span>
+              <span className="stat-icon"><FiDollarSign className="icon-float" style={{ color: 'var(--accent)' }} /></span>
               <div className="stat-info"><div className="label">Weekly Amount</div><div className="value">₹{stats.weekly?.totalAmount || 0}</div></div>
             </div>
             <div className="stat-card profit">
-              <span className="stat-icon">📈</span>
+              <span className="stat-icon"><HiTrendingUp className="icon-float" style={{ color: 'var(--success)' }} /></span>
               <div className="stat-info"><div className="label">Weekly Profit</div><div className="value">₹{stats.weekly?.totalProfit || 0}</div></div>
             </div>
             <div className="stat-card phonepe">
-              <span className="stat-icon">📱</span>
+              <span className="stat-icon"><MdPhoneAndroid className="icon-float" style={{ color: 'var(--primary)' }} /></span>
               <div className="stat-info"><div className="label">Weekly PhonePe</div><div className="value">₹{stats.weekly?.phonepeAmount || 0}</div></div>
             </div>
             <div className="stat-card cash">
-              <span className="stat-icon">💵</span>
+              <span className="stat-icon"><TbCash className="icon-float" style={{ color: 'var(--success)' }} /></span>
               <div className="stat-info"><div className="label">Weekly Cash</div><div className="value">₹{stats.weekly?.cashAmount || 0}</div></div>
             </div>
           </div>
 
           <div className="stats-bar">
             <div className="stat-card">
-              <span className="stat-icon">📋</span>
+              <span className="stat-icon"><FiClipboard className="icon-float" /></span>
               <div className="stat-info"><div className="label">Weekly Bookings</div><div className="value">{stats.weekly?.count || 0}</div></div>
             </div>
             <div className="stat-card">
-              <span className="stat-icon">✅</span>
+              <span className="stat-icon"><FiCheckCircle className="icon-float" style={{ color: 'var(--success)' }} /></span>
               <div className="stat-info"><div className="label">Paid (Weekly)</div><div className="value">{stats.weekly?.paidCount || 0}</div></div>
             </div>
             <div className="stat-card">
-              <span className="stat-icon">📤</span>
+              <span className="stat-icon"><FiSend className="icon-float" style={{ color: 'var(--primary)' }} /></span>
               <div className="stat-info"><div className="label">Sent (Weekly)</div><div className="value">{stats.weekly?.sentCount || 0}</div></div>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
+import { FiActivity, FiLock, FiCheckCircle } from 'react-icons/fi';
 
 const Login = () => {
   const { login } = useAuth();
@@ -58,7 +59,9 @@ const Login = () => {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-logo">
-          <div className="temple-icon">🕌</div>
+          <div className="temple-icon">
+            <FiActivity className="icon-glow icon-float" style={{ fontSize: '3rem', color: 'var(--accent)' }} />
+          </div>
           <h1>Temple Ticket Manager</h1>
           <p>Sri Venkateswara Swami Temple, Vadapalli</p>
         </div>
@@ -128,8 +131,8 @@ const Login = () => {
           {error && <p className="error-msg">{error}</p>}
           <button type="submit" className="btn btn-primary btn-full" style={{ marginTop: '1rem' }} disabled={loading}>
             {loading
-              ? mode === 'login' ? 'Signing in...' : 'Creating...'
-              : mode === 'login' ? '🔐 Sign In' : '✅ Create Account'
+              ? (mode === 'login' ? 'Signing in...' : 'Creating...')
+              : mode === 'login' ? <><FiLock className="icon-hover-scale" style={{ marginRight: '0.4rem' }} /> Sign In</> : <><FiCheckCircle className="icon-hover-scale" style={{ marginRight: '0.4rem' }} /> Create Account</>
             }
           </button>
         </form>

@@ -457,26 +457,36 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
 
 /* ── Solo Leveling Aesthetic Overrides (applied globally, especially inside dark mode) ── */
 .dark, .solo-leveling-theme {
-  --primary: #00b0ff;
-  --primary-dark: #0091ea;
-  --primary-light: rgba(0, 176, 255, 0.12);
-  --accent: #00e5ff;
-  --success: #00e676;
-  --danger: #ff1744;
-  --warning: #ffea00;
-  --bg: #030611;
-  --surface: #0a0e1a;
-  --border: #14203d;
-  --text: #e0f2f1;
-  --text-muted: #6482a8;
-  --shadow: 0 0 16px rgba(0, 229, 255, 0.25);
+  --primary: #3B82F6; /* Primary Glow */
+  --primary-dark: #1D4ED8;
+  --primary-light: rgba(59, 130, 246, 0.12);
+  --accent: #38BDF8; /* Accent */
+  --success: #22C55E;
+  --danger: #EF4444;
+  --warning: #F59E0B;
+  --bg: #050816; /* Primary Background */
+  --bg-secondary: #0B1120; /* Secondary Background */
+  --surface: rgba(15, 23, 42, 0.85); /* Card Background */
+  --border: rgba(59, 130, 246, 0.15);
+  --text: #FFFFFF; /* Main Titles, Card Values */
+  --text-muted: #94A3B8; /* Labels */
+  --shadow: 0 0 16px rgba(59, 130, 246, 0.15);
 }
 
 /* Solo Leveling specific system styling */
 .solo-leveling-theme {
-  background: radial-gradient(circle at 50% 30%, #080f26 0%, #030611 100%) !important;
+  background: var(--bg) !important;
   position: relative;
   overflow: hidden;
+}
+
+.solo-leveling-theme::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(circle at 50% 30%, var(--bg-secondary) 0%, var(--bg) 100%) !important;
+  z-index: -1;
+  pointer-events: none;
 }
 
 /* Glassmorphism cards / system panels */
@@ -484,48 +494,70 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
 .solo-leveling-theme .add-booking-bar,
 .solo-leveling-theme .table-wrapper,
 .solo-leveling-theme .admin-stat-card {
-  background: rgba(10, 14, 26, 0.75) !important;
+  background: rgba(15, 23, 42, 0.85) !important;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(0, 229, 255, 0.15) !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 0 8px rgba(0, 229, 255, 0.05) !important;
+  border: 1px solid rgba(59, 130, 246, 0.15) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 0 8px rgba(59, 130, 246, 0.05) !important;
   border-radius: 10px;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   position: relative;
   overflow: hidden;
 }
 
-/* Neon blue glowing stats and values */
+/* Text Visibility Rules */
+.solo-leveling-theme h1,
+.solo-leveling-theme h2,
+.solo-leveling-theme h3 {
+  color: #FFFFFF !important;
+  text-shadow: 0 0 8px rgba(59, 130, 246, 0.2);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.solo-leveling-theme .subtitle,
+.solo-leveling-theme p {
+  color: #CBD5E1;
+}
+
 .solo-leveling-theme .stat-info .value {
-  color: #00e5ff !important;
-  text-shadow: 0 0 8px rgba(0, 229, 255, 0.6), 0 0 20px rgba(0, 229, 255, 0.2) !important;
+  color: #FFFFFF !important;
+  text-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
   font-family: 'Consolas', monospace, sans-serif;
   font-weight: 800;
 }
 
 .solo-leveling-theme .stat-info .label {
-  color: #8da2c4 !important;
+  color: #94A3B8 !important;
   text-transform: uppercase;
   font-size: 0.68rem;
   letter-spacing: 1.5px;
   font-weight: 700;
 }
 
+.solo-leveling-theme .card-label {
+  color: #94A3B8 !important;
+}
+
+.solo-leveling-theme .card-value {
+  color: #FFFFFF !important;
+}
+
+.solo-leveling-theme .user,
+.solo-leveling-theme .text-muted {
+  color: #94A3B8 !important;
+}
+
+.solo-leveling-theme .muted-text {
+  color: #64748B !important;
+}
+
 /* Highlight borders on hover */
 .solo-leveling-theme .stat-card:hover,
 .solo-leveling-theme .admin-stat-card:hover {
-  border-color: rgba(0, 229, 255, 0.5) !important;
+  border-color: rgba(59, 130, 246, 0.4) !important;
   transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 0 15px rgba(0, 229, 255, 0.35) !important;
-}
-
-/* System Header styling */
-.solo-leveling-theme h2, 
-.solo-leveling-theme h3 {
-  color: #00e5ff !important;
-  text-shadow: 0 0 6px rgba(0, 229, 255, 0.3);
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.25) !important;
 }
 
 /* Custom animated particles overlay */
@@ -544,10 +576,10 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
   position: absolute;
   width: 4px;
   height: 4px;
-  background: #00e5ff;
+  background: #3B82F6;
   border-radius: 50%;
   opacity: 0.3;
-  box-shadow: 0 0 8px #00e5ff;
+  box-shadow: 0 0 8px #3B82F6;
   animation: floatUp 15s infinite linear;
 }
 
@@ -582,7 +614,7 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
   left: 0;
   width: 100%;
   height: 2px;
-  background: linear-gradient(90deg, transparent, #00e5ff, transparent);
+  background: linear-gradient(90deg, transparent, #3B82F6, transparent);
   animation: energyPulse 3s infinite linear;
 }
 
@@ -593,54 +625,54 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
 
 /* Global button gaming styles */
 .solo-leveling-theme .btn-primary {
-  background: linear-gradient(135deg, #0091ea 0%, #00e5ff 100%) !important;
-  border: 1px solid rgba(0, 229, 255, 0.4) !important;
-  color: #030611 !important;
+  background: linear-gradient(135deg, #1D4ED8 0%, #3B82F6 100%) !important;
+  border: 1px solid rgba(59, 130, 246, 0.4) !important;
+  color: #FFFFFF !important;
   font-weight: 700;
   text-shadow: none;
-  box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
 }
 
 .solo-leveling-theme .btn-primary:hover {
-  background: linear-gradient(135deg, #00b0ff 0%, #00e5ff 100%) !important;
-  box-shadow: 0 0 18px rgba(0, 229, 255, 0.6);
+  background: linear-gradient(135deg, #3B82F6 0%, #60A5FA 100%) !important;
+  box-shadow: 0 0 18px rgba(59, 130, 246, 0.4);
   transform: translateY(-1px);
 }
 
 .solo-leveling-theme .btn-outline {
-  border: 1.5px solid #00e5ff !important;
-  color: #00e5ff !important;
-  box-shadow: inset 0 0 4px rgba(0, 229, 255, 0.1);
+  border: 1.5px solid #3B82F6 !important;
+  color: #3B82F6 !important;
+  box-shadow: inset 0 0 4px rgba(59, 130, 246, 0.1);
 }
 
 .solo-leveling-theme .btn-outline:hover {
-  background: rgba(0, 229, 255, 0.15) !important;
-  box-shadow: 0 0 12px rgba(0, 229, 255, 0.3);
+  background: rgba(59, 130, 246, 0.15) !important;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
 }
 
 /* System Navbar Styling */
 .solo-leveling-theme .navbar {
-  background: rgba(10, 14, 26, 0.9) !important;
+  background: rgba(11, 17, 32, 0.9) !important;
   backdrop-filter: blur(10px);
-  border-bottom: 2px solid rgba(0, 229, 255, 0.3) !important;
-  box-shadow: 0 4px 25px rgba(0, 229, 255, 0.15) !important;
+  border-bottom: 2px solid rgba(59, 130, 246, 0.2) !important;
+  box-shadow: 0 4px 25px rgba(59, 130, 246, 0.1) !important;
 }
 
 .solo-leveling-theme .nav-tab.active {
-  background: rgba(0, 229, 255, 0.2) !important;
-  border: 1px solid rgba(0, 229, 255, 0.5) !important;
-  color: #00e5ff !important;
-  box-shadow: 0 0 10px rgba(0, 229, 255, 0.3) !important;
+  background: rgba(59, 130, 246, 0.2) !important;
+  border: 1px solid rgba(59, 130, 246, 0.4) !important;
+  color: #38BDF8 !important;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.2) !important;
 }
 
 /* Table overrides for futuristic neon system grid */
 .solo-leveling-theme table thead {
-  background: #0d162d !important;
-  border-bottom: 2px solid rgba(0, 229, 255, 0.3);
+  background: #0B1120 !important;
+  border-bottom: 2px solid rgba(59, 130, 246, 0.2);
 }
 
 .solo-leveling-theme table thead th {
-  color: #00e5ff !important;
+  color: #38BDF8 !important;
   font-weight: 700;
   text-transform: uppercase;
   font-size: 0.74rem;
@@ -648,17 +680,55 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
 }
 
 .solo-leveling-theme tbody tr {
-  border-bottom: 1px solid rgba(0, 229, 255, 0.08) !important;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.08) !important;
 }
 
 .solo-leveling-theme tbody tr:hover {
-  background: rgba(0, 229, 255, 0.05) !important;
+  background: rgba(59, 130, 246, 0.05) !important;
 }
 
 /* Serial Badge */
 .solo-leveling-theme .serial-no {
-  background: #00e5ff !important;
-  color: #030611 !important;
-  box-shadow: 0 0 8px rgba(0, 229, 255, 0.5) !important;
+  background: #3B82F6 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.3) !important;
+}
+
+/* ── Icon Animation System ── */
+.icon-spin {
+  animation: iconSpin 2s infinite linear;
+}
+@keyframes iconSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.icon-pulse {
+  animation: iconPulse 2s infinite ease-in-out;
+}
+@keyframes iconPulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 6px var(--primary)); }
+}
+
+.icon-hover-scale {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-block;
+}
+.icon-hover-scale:hover {
+  transform: scale(1.25);
+}
+
+.icon-float {
+  animation: iconFloat 4s infinite ease-in-out;
+  display: inline-block;
+}
+@keyframes iconFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.icon-glow {
+  filter: drop-shadow(0 0 4px var(--primary));
 }
 

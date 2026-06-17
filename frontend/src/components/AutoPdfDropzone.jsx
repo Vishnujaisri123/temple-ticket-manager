@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { uploadAutoPdf } from '../services/api';
 import { toast } from './Toast';
+import { FiFileText } from 'react-icons/fi';
 
 const AutoPdfDropzone = ({ onUploadSuccess }) => {
   const [dragging, setDragging] = useState(false);
@@ -76,7 +77,7 @@ const AutoPdfDropzone = ({ onUploadSuccess }) => {
         onDrop={onDrop}
         onClick={() => inputRef.current.click()}
       >
-        <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📄</div>
+        <FiFileText className="icon-pulse icon-glow" style={{ fontSize: '2.5rem', marginBottom: '0.5rem', color: 'var(--primary)' }} />
         <h3 style={{ margin: 0, color: 'var(--primary-color)' }}>
           {uploading ? 'Processing PDFs...' : 'Auto-Match PDF Dropzone'}
         </h3>

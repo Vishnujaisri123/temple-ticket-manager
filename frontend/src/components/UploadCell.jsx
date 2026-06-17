@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { uploadPdf } from '../services/api';
 import { toast } from './Toast';
+import { FiFileText, FiDownload, FiRotateCcw, FiX, FiPaperclip } from 'react-icons/fi';
 
 const UploadCell = ({ booking, onUploaded }) => {
   const [dragging, setDragging] = useState(false);
@@ -45,24 +46,28 @@ const UploadCell = ({ booking, onUploaded }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
           <button
             className="pdf-link"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}
             onClick={() => setPreview(true)}
           >
-            📄 View PDF
+            <FiFileText /> View PDF
           </button>
           <a
             href={previewUrl}
             download
             className="btn btn-sm btn-outline"
-            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
             title="Download"
-          >⬇</a>
+          >
+            <FiDownload />
+          </a>
           <button
             className="btn btn-sm btn-outline"
-            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
             title="Replace PDF"
             onClick={() => inputRef.current.click()}
-          >↺</button>
+          >
+            <FiRotateCcw className="icon-hover-scale" />
+          </button>
         </div>
 
         {/* PDF Preview Modal */}
@@ -79,11 +84,17 @@ const UploadCell = ({ booking, onUploaded }) => {
               style={{ background: '#fff', borderRadius: '12px', overflow: 'hidden', width: '90%', maxWidth: '900px', height: '90vh', display: 'flex', flexDirection: 'column' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid #eee', background: '#b5451b' }}>
-                <span style={{ color: '#fff', fontWeight: 600, fontSize: '0.9rem' }}>📄 {booking.member1} — Ticket</span>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <a href={previewUrl} download className="btn btn-sm" style={{ background: '#fff', color: '#b5451b', padding: '0.3rem 0.75rem' }}>⬇ Download</a>
-                  <button onClick={() => setPreview(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '6px', padding: '0.3rem 0.75rem', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', background: 'var(--primary-dark)' }}>
+                <span style={{ color: '#fff', fontWeight: 600, fontSize: '0.9rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <FiFileText /> {booking.member1} — Ticket
+                </span>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <a href={previewUrl} download className="btn btn-sm" style={{ background: '#fff', color: 'var(--primary-dark)', padding: '0.3rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <FiDownload /> Download
+                  </a>
+                  <button onClick={() => setPreview(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '6px', padding: '0.3rem 0.75rem', cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <FiX />
+                  </button>
                 </div>
               </div>
               <iframe
@@ -109,7 +120,7 @@ const UploadCell = ({ booking, onUploaded }) => {
         onDrop={onDrop}
         onClick={() => inputRef.current.click()}
       >
-        <span className="drop-icon">📎</span>
+        <span className="drop-icon"><FiPaperclip /></span>
         {uploading ? 'Uploading...' : 'Drop PDF'}
       </div>
       {uploading && (

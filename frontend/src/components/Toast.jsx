@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useEffect } from 'react';
+import { FiCheckCircle, FiXCircle, FiAlertTriangle } from 'react-icons/fi';
 
 export const useToast = () => {
   const [toasts, setToasts] = useState([]);
@@ -25,10 +26,10 @@ export const toast = (message, type = 'success') => {
 export const ToastContainer = ({ toasts }) => (
   <div className="toast-container">
     {toasts.map((t) => (
-      <div key={t.id} className={`toast ${t.type}`}>
-        {t.type === 'success' && '✅'}
-        {t.type === 'error' && '❌'}
-        {t.type === 'warning' && '⚠️'}
+      <div key={t.id} className={`toast ${t.type}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+        {t.type === 'success' && <FiCheckCircle className="icon-pulse" />}
+        {t.type === 'error' && <FiXCircle className="icon-pulse" />}
+        {t.type === 'warning' && <FiAlertTriangle className="icon-pulse" />}
         {t.message}
       </div>
     ))}

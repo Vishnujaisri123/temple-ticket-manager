@@ -1,4 +1,5 @@
 import { updateBooking } from '../services/api';
+import { FiSend, FiBell } from 'react-icons/fi';
 
 const SendButton = ({ booking, isReminder = false, onSent, onRemoveFromDashboard }) => {
   const disabled = !booking.pdfUrl;
@@ -95,8 +96,9 @@ Jai Govinda! 🙏`;
       onClick={handleSend}
       disabled={disabled}
       title={disabled ? 'Upload PDF first' : `Send to ${booking.phone} via WhatsApp`}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
     >
-      <span>📱</span>
+      {isReminder ? <FiBell className="icon-pulse" /> : <FiSend className="icon-hover-scale" />}
       {isReminder ? 'Remind' : 'Send'}
     </button>
   );

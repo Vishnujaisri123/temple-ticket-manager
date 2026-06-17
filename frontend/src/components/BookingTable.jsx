@@ -5,6 +5,22 @@ import UploadCell from './UploadCell';
 import SendButton from './SendButton';
 import GothramInput from './GothramInput';
 import PrintButton from './PrintButton';
+import {
+  FiCheckCircle,
+  FiSend,
+  FiEdit2,
+  FiCalendar,
+  FiDollarSign,
+  FiFileText,
+  FiTrash2,
+  FiCheck,
+  FiX,
+  FiPhone,
+  FiHome,
+  FiClock,
+  FiBell,
+  FiClipboard,
+} from 'react-icons/fi';
 
 const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN') : '—';
 
@@ -27,8 +43,8 @@ const PaymentSelect = ({ booking, onUpdate }) => (
     }}
   >
     <option value="">— Select —</option>
-    <option value="phonepe">📱 PhonePe</option>
-    <option value="cash">💵 Cash</option>
+    <option value="phonepe">PhonePe</option>
+    <option value="cash">Cash</option>
   </select>
 );
 
@@ -116,7 +132,9 @@ const BookingTable = ({ bookings, setBookings }) => {
     return (
       <div className="table-wrapper">
         <div className="empty-state">
-          <div className="icon">🕌</div>
+          <div className="icon">
+            <FiClipboard className="icon-glow" style={{ fontSize: '3rem', color: 'var(--accent)' }} />
+          </div>
           <p>No bookings found. Add a new booking above.</p>
         </div>
       </div>
@@ -129,13 +147,15 @@ const BookingTable = ({ bookings, setBookings }) => {
     <>
       {reminderCount > 0 && (
         <div className="reminder-banner">
-          <span className="icon">🔔</span>
+          <span className="icon"><FiBell className="icon-pulse" /></span>
           <span><strong>{reminderCount}</strong> booking(s) visit in 2 days — send reminders!</span>
         </div>
       )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
         <PrintButton bookings={bookings} title="Dashboard Bookings" />
-        <button className="btn btn-warning btn-sm" onClick={handleBulkSend}>📤 Bulk Send</button>
+        <button className="btn btn-warning btn-sm" onClick={handleBulkSend} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+          <FiSend /> Bulk Send
+        </button>
       </div>
 
       {/* ── Desktop Table ── */}
@@ -146,8 +166,10 @@ const BookingTable = ({ bookings, setBookings }) => {
               <tr>
                 <th>#</th><th>Bookers Date</th><th>Booked Date</th><th>Phone</th>
                 <th>Gothram</th><th>Member 1</th><th>Member 2</th>
-                <th>✅ Done</th><th>📤 Sent</th><th>💰 Paid</th>
-                <th>Payment</th><th>📎 PDF</th><th>Actions</th>
+                <th><FiCheckCircle style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} /> Done</th>
+                <th><FiSend style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} /> Sent</th>
+                <th><FiDollarSign style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} /> Paid</th>
+                <th>Payment</th><th><FiFileText style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} /> PDF</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -195,14 +217,14 @@ const BookingTable = ({ bookings, setBookings }) => {
                           onChange={(e) => setEditingPhone((prev) => ({ ...prev, [b._id]: e.target.value }))}
                           style={{ border: '1.5px solid var(--primary)', borderRadius: '4px', padding: '0.25rem 0.4rem', fontSize: '0.82rem', width: '120px' }}
                           maxLength={13} autoFocus />
-                        <button className="btn btn-sm btn-primary" style={{ padding: '0.2rem 0.5rem' }} onClick={() => handlePhoneSave(b)}>✓</button>
-                        <button className="btn btn-sm btn-outline" style={{ padding: '0.2rem 0.5rem' }} onClick={() => setEditingPhone((prev) => { const n = { ...prev }; delete n[b._id]; return n; })}>✕</button>
+                        <button className="btn btn-sm btn-primary" style={{ padding: '0.2rem 0.5rem' }} onClick={() => handlePhoneSave(b)}><FiCheck /></button>
+                        <button className="btn btn-sm btn-outline" style={{ padding: '0.2rem 0.5rem' }} onClick={() => setEditingPhone((prev) => { const n = { ...prev }; delete n[b._id]; return n; })}><FiX /></button>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                         <span style={{ fontSize: '0.82rem' }}>{b.phone}</span>
                         <button className="btn btn-sm btn-outline" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }}
-                          onClick={() => setEditingPhone((prev) => ({ ...prev, [b._id]: b.phone }))}>✏️</button>
+                          onClick={() => setEditingPhone((prev) => ({ ...prev, [b._id]: b.phone }))}><FiEdit2 /></button>
                       </div>
                     )}
                   </td>
@@ -234,7 +256,7 @@ const BookingTable = ({ bookings, setBookings }) => {
                     <div className="row-actions">
                       <SendButton booking={b} onSent={onSent} onRemoveFromDashboard={onRemove} />
                       <SendButton booking={b} isReminder onSent={onSent} onRemoveFromDashboard={onRemove} />
-                      <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(b._id)} title="Delete">🗑️</button>
+                      <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(b._id)} title="Delete"><FiTrash2 /></button>
                     </div>
                   </td>
                 </tr>
@@ -253,15 +275,17 @@ const BookingTable = ({ bookings, setBookings }) => {
                 <div className="card-serial">{b.serialNo}</div>
                 <div>
                   <div className="card-name">{b.member1}{b.member2 ? ` & ${b.member2}` : ''}</div>
-                  <div className="card-date">📅 Booked: {fmt(b.visitDate)} {b.slotTime && `| ⏱️ ${b.slotTime}`}</div>
+                  <div className="card-date" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', flexWrap: 'wrap' }}>
+                    <FiCalendar /> Booked: {fmt(b.visitDate)} {b.slotTime && <>| <FiClock /> {b.slotTime}</>}
+                  </div>
                 </div>
               </div>
               <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }}
-                onClick={() => handleDelete(b._id)}>🗑️</button>
+                onClick={() => handleDelete(b._id)}><FiTrash2 /></button>
             </div>
             <div className="booking-card-body">
               <div className="card-row">
-                <span className="card-label">📞 Phone</span>
+                <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiPhone /> Phone</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   {editingPhone[b._id] !== undefined ? (
                     <>
@@ -269,32 +293,32 @@ const BookingTable = ({ bookings, setBookings }) => {
                         onChange={(e) => setEditingPhone((prev) => ({ ...prev, [b._id]: e.target.value }))}
                         style={{ border: '1.5px solid var(--primary)', borderRadius: '4px', padding: '0.2rem 0.4rem', fontSize: '0.82rem', width: '110px' }}
                         maxLength={13} />
-                      <button className="btn btn-sm btn-primary" style={{ padding: '0.15rem 0.4rem' }} onClick={() => handlePhoneSave(b)}>✓</button>
-                      <button className="btn btn-sm btn-outline" style={{ padding: '0.15rem 0.4rem' }} onClick={() => setEditingPhone((prev) => { const n = { ...prev }; delete n[b._id]; return n; })}>✕</button>
+                      <button className="btn btn-sm btn-primary" style={{ padding: '0.15rem 0.4rem' }} onClick={() => handlePhoneSave(b)}><FiCheck /></button>
+                      <button className="btn btn-sm btn-outline" style={{ padding: '0.15rem 0.4rem' }} onClick={() => setEditingPhone((prev) => { const n = { ...prev }; delete n[b._id]; return n; })}><FiX /></button>
                     </>
                   ) : (
                     <>
                       <span className="card-value">{b.phone}</span>
                       <button className="btn btn-sm btn-outline" style={{ padding: '0.1rem 0.35rem', fontSize: '0.7rem' }}
-                        onClick={() => setEditingPhone((prev) => ({ ...prev, [b._id]: b.phone }))}>✏️</button>
+                        onClick={() => setEditingPhone((prev) => ({ ...prev, [b._id]: b.phone }))}><FiEdit2 /></button>
                     </>
                   )}
                 </div>
               </div>
               <div className="card-row">
-                <span className="card-label">🏛️ Gothram</span>
+                <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiHome /> Gothram</span>
                 <span className="card-value">{b.gothram || '—'}</span>
               </div>
               <div className="card-row">
-                <span className="card-label">📅 Bookers Date</span>
+                <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiCalendar /> Bookers Date</span>
                 <span className="card-value">{fmt(b.bookingDate)}</span>
               </div>
               <div className="card-row">
-                <span className="card-label">💳 Payment</span>
+                <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiDollarSign /> Payment</span>
                 <PaymentSelect booking={b} onUpdate={(bk, field, val) => { saveField(bk, field, val); setBookings((prev) => prev.map((x) => x._id === bk._id ? { ...x, [field]: val } : x)); }} />
               </div>
               <div className="card-row">
-                <span className="card-label">⏱️ Timeslot</span>
+                <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiClock /> Timeslot</span>
                 <select
                   value={b.slotTime || ''}
                   onChange={(e) => {
@@ -321,17 +345,17 @@ const BookingTable = ({ bookings, setBookings }) => {
                 </select>
               </div>
               <div className="card-checkboxes">
-                <label className="card-checkbox-item">
+                <label className="card-checkbox-item" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
                   <input type="checkbox" checked={b.completed} onChange={() => handleCheckbox(b, 'completed')} />
-                  ✅ Done
+                  <FiCheckCircle style={{ color: 'var(--success)' }} /> Done
                 </label>
-                <label className="card-checkbox-item">
+                <label className="card-checkbox-item" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
                   <input type="checkbox" checked={b.paid} onChange={() => handleCheckbox(b, 'paid')} />
-                  💰 Paid
+                  <FiDollarSign style={{ color: 'var(--success)' }} /> Paid
                 </label>
-                <label className="card-checkbox-item">
+                <label className="card-checkbox-item" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
                   <input type="checkbox" checked={b.pdfSent} onChange={() => handleCheckbox(b, 'pdfSent')} />
-                  📤 Sent
+                  <FiSend style={{ color: 'var(--primary)' }} /> Sent
                 </label>
               </div>
               <div style={{ paddingTop: '0.5rem' }}>

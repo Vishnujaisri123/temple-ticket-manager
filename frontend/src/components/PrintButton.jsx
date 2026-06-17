@@ -1,3 +1,5 @@
+import { FiPrinter } from 'react-icons/fi';
+
 const PrintButton = ({ bookings, title = 'All Bookings' }) => {
   const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN') : '—';
 
@@ -11,10 +13,10 @@ const PrintButton = ({ bookings, title = 'All Bookings' }) => {
         <td>${b.gothram || '—'}</td>
         <td>${b.member1}</td>
         <td>${b.member2 || '—'}</td>
-        <td style="text-align:center">${b.paid ? '✅' : '❌'}</td>
-        <td style="text-align:center">${b.paymentMethod === 'phonepe' ? '📱 PhonePe' : b.paymentMethod === 'cash' ? '💵 Cash' : '—'}</td>
-        <td style="text-align:center">${b.completed ? '✅' : '❌'}</td>
-        <td style="text-align:center">${b.pdfSent ? '✅' : '❌'}</td>
+        <td style="text-align:center">${b.paid ? 'Yes' : 'No'}</td>
+        <td style="text-align:center">${b.paymentMethod === 'phonepe' ? 'PhonePe' : b.paymentMethod === 'cash' ? 'Cash' : '—'}</td>
+        <td style="text-align:center">${b.completed ? 'Yes' : 'No'}</td>
+        <td style="text-align:center">${b.pdfSent ? 'Yes' : 'No'}</td>
       `;
       
       return `
@@ -50,7 +52,7 @@ const PrintButton = ({ bookings, title = 'All Bookings' }) => {
       </head>
       <body>
         <div class="header">
-          <h1>🕌 Sri Venkateswara Swami Temple, Vadapalli</h1>
+          <h1>Sri Venkateswara Swami Temple, Vadapalli</h1>
           <p>Temple Ticket Manager — ${title}</p>
         </div>
         <div class="meta">
@@ -90,8 +92,8 @@ const PrintButton = ({ bookings, title = 'All Bookings' }) => {
   };
 
   return (
-    <button className="btn btn-outline btn-sm" onClick={handlePrint} title="Print / Download PDF">
-      🖨️ Print PDF
+    <button className="btn btn-outline btn-sm" onClick={handlePrint} title="Print / Download PDF" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+      <FiPrinter /> Print PDF
     </button>
   );
 };
