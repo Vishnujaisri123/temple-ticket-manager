@@ -49,6 +49,11 @@ body {
 .dark textarea::placeholder {
   color: var(--text-muted) !important;
 }
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.solo-leveling-theme input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
 
 /* ── Auth ── */
 .auth-page {
