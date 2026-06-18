@@ -56,7 +56,7 @@ const Login = () => {
   };
 
   return (
-    <div className="auth-page">
+    <div className="auth-page solo-leveling-theme">
       <div className="auth-card">
         <div className="auth-logo">
           <div className="temple-icon">
