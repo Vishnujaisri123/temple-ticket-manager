@@ -21,7 +21,7 @@ import {
   FiClipboard,
 } from 'react-icons/fi';
 import { LuHistory } from 'react-icons/lu';
-import { HiOutlineDocumentReport } from 'react-icons/hi';
+import { HiOutlineDocumentReport, HiTrendingUp } from 'react-icons/hi';
 
 const formatDateStr = (dateStr) => {
   if (!dateStr) return '—';
