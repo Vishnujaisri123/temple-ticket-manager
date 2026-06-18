@@ -664,14 +664,17 @@ const getHistoryTickets = async (req, res) => {
 
 const getAutoDeletedLogs = async (req, res) => {
   try {
-    const { since } = req.query;
+    const { since, all } = req.query;
     let query = { createdBy: req.admin.id };
-    if (since) {
+    if (since && since !== 'all') {
       query.deletedAt = { $gt: new Date(since) };
+    } else if (all === 'true') {
+      // Retrieve all historical logs
     } else {
-      const oneDayAgo = new Date();
-      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-      query.deletedAt = { $gt: oneDayAgo };
+      // Default to 30 days of logs for normal viewing
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      query.deletedAt = { $gt: thirtyDaysAgo };
     }
     const DeletedTicketsLog = require('../models/DeletedTicketsLog');
     const logs = await DeletedTicketsLog.find(query).sort({ deletedAt: -1 }).lean();
