@@ -1,210 +1,140 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useCallback } from 'react';
-import { getBookings, deleteBooking, updateBooking, claimOrphans } from '../services/api';
+import { getHistoryFolders, getHistoryTickets } from '../services/api';
 import { toast } from '../components/Toast';
-import SendButton from '../components/SendButton';
-import UploadCell from '../components/UploadCell';
-import PrintButton from '../components/PrintButton';
 import AutoPdfDropzone from '../components/AutoPdfDropzone';
 import {
-  FiCheckCircle,
-  FiSend,
-  FiEdit2,
-  FiSearch,
   FiCalendar,
   FiDollarSign,
-  FiFileText,
-  FiTrash2,
-  FiCheck,
-  FiX,
-  FiPhone,
-  FiHome,
-  FiUser,
+  FiSearch,
   FiClock,
+  FiFolder,
+  FiFolderMinus,
   FiFolderPlus,
   FiActivity,
+  FiCheckCircle,
+  FiSend,
+  FiPhone,
+  FiX,
+  FiChevronDown,
+  FiChevronUp,
+  FiClipboard,
 } from 'react-icons/fi';
 import { LuHistory } from 'react-icons/lu';
-import { TbDatabaseImport } from 'react-icons/tb';
-import { HiOutlineDocumentReport } from 'react-icons/hi';
+import { HiOutlineDocumentReport, HiTrendingUp } from 'react-icons/hi';
 
-const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN') : '—';
-const fmtTime = (d) => d ? new Date(d).toLocaleString('en-IN', {
-  day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-}) : '—';
+const formatDateStr = (dateStr) => {
+  if (!dateStr) return '—';
+  const cleanStr = dateStr.split('T')[0];
+  const parts = cleanStr.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
+};
 
 const History = () => {
-  const [completed, setCompleted] = useState([]);
-  const [sent, setSent] = useState([]);
+  const [folders, setFolders] = useState([]);
+  const [stats, setStats] = useState({ count: 0, totalAmount: 0, totalProfit: 0, paidCount: 0, unpaidCount: 0, completedCount: 0, sentCount: 0 });
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('completed');
   const [sort, setSort] = useState('desc');
-  const [editingPhone, setEditingPhone] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
 
   // Subsections inside History
   const [subSection, setSubSection] = useState('weekly'); // 'weekly' | 'reports' | 'further'
-  const [dateFilter, setDateFilter] = useState('current_week'); // 'current_week' | 'previous_week' | 'monthly' | 'further_date' | 'custom'
+  const [dateFilter, setDateFilter] = useState('current_week'); // 'current_week' | 'previous_week' | 'custom'
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
-  const fetchHistory = useCallback(async () => {
+  // Folder interaction and lazy-loaded tickets
+  const [expandedFolders, setExpandedFolders] = useState({});
+  const [folderTickets, setFolderTickets] = useState({});
+  const [folderLoading, setFolderLoading] = useState({});
+
+  // Ticket Detail Modal
+  const [selectedTicket, setSelectedTicket] = useState(null);
+
+  const fetchFolders = useCallback(async () => {
     setLoading(true);
+    setExpandedFolders({});
+    setFolderTickets({});
+    setFolderLoading({});
     try {
-      const params = { sort };
-      
+      const params = {
+        subSection,
+        sort,
+        searchQuery,
+      };
       if (subSection === 'weekly') {
-        params.filterType = dateFilter;
+        params.dateFilter = dateFilter;
         if (dateFilter === 'custom') {
           if (!customStart || !customEnd) {
-            setCompleted([]);
-            setSent([]);
+            setFolders([]);
             setLoading(false);
             return;
           }
           params.startDate = customStart;
           params.endDate = customEnd;
         }
-      } else if (subSection === 'reports') {
-        params.filterType = 'monthly';
-      } else if (subSection === 'further') {
-        params.filterType = 'further_date';
       }
-
-      const [completedRes, sentRes] = await Promise.all([
-        getBookings({ ...params, status: 'history_completed' }),
-        getBookings({ ...params, status: 'sent' }),
-      ]);
-      setCompleted(completedRes.data);
-      setSent(sentRes.data);
+      const { data } = await getHistoryFolders(params);
+      setFolders(data.folders || []);
+      setStats(data.stats || { count: 0, totalAmount: 0, totalProfit: 0, paidCount: 0, unpaidCount: 0, completedCount: 0, sentCount: 0 });
     } catch (err) {
-      toast(err.response?.data?.message || 'Failed to load history', 'error');
+      toast(err.response?.data?.message || 'Failed to load folders', 'error');
     } finally {
       setLoading(false);
     }
-  }, [sort, subSection, dateFilter, customStart, customEnd]);
+  }, [subSection, dateFilter, customStart, customEnd, searchQuery, sort]);
 
   useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
+    fetchFolders();
+  }, [fetchFolders]);
 
-  useEffect(() => {
-    const handleStatsUpdated = () => {
-      fetchHistory();
-    };
-    window.addEventListener('statsUpdated', handleStatsUpdated);
-    return () => window.removeEventListener('statsUpdated', handleStatsUpdated);
-  }, [fetchHistory]);
+  const toggleFolder = async (dateStr) => {
+    const isExpanded = !!expandedFolders[dateStr];
+    setExpandedFolders((prev) => ({ ...prev, [dateStr]: !isExpanded }));
 
-  useEffect(() => {
-    const handleBookingUpdated = (e) => {
-      const updated = e.detail;
-      setCompleted((prev) => prev.map((b) => b._id === updated._id ? { ...b, ...updated } : b));
-      setSent((prev) => prev.map((b) => b._id === updated._id ? { ...b, ...updated } : b));
-    };
-    window.addEventListener('bookingUpdated', handleBookingUpdated);
-    return () => window.removeEventListener('bookingUpdated', handleBookingUpdated);
-  }, []);
-
-  const saveField = useCallback(async (id, field, value, type) => {
-    try {
-      const { data } = await updateBooking(id, { [field]: value });
-      if (type === 'completed') setCompleted((prev) => prev.map((b) => b._id === id ? data : b));
-      else if (type === 'sent') setSent((prev) => prev.map((b) => b._id === id ? data : b));
-    } catch { toast('Failed to update', 'error'); }
-  }, []);
-
-  const handleDelete = async (id, type) => {
-    if (!window.confirm('Delete this record?')) return;
-    try {
-      await deleteBooking(id);
-      if (type === 'completed') setCompleted((prev) => prev.filter((b) => b._id !== id));
-      else if (type === 'sent') setSent((prev) => prev.filter((b) => b._id !== id));
-      toast('Deleted successfully');
-    } catch {
-      toast('Failed to delete', 'error');
+    // If expanding and tickets are not loaded yet, fetch them
+    if (!isExpanded && !folderTickets[dateStr]) {
+      setFolderLoading((prev) => ({ ...prev, [dateStr]: true }));
+      try {
+        const params = {
+          subSection,
+          sort,
+          searchQuery,
+          bookingDate: dateStr,
+        };
+        if (subSection === 'weekly') {
+          params.dateFilter = dateFilter;
+          if (dateFilter === 'custom') {
+            params.startDate = customStart;
+            params.endDate = customEnd;
+          }
+        }
+        const { data } = await getHistoryTickets(params);
+        setFolderTickets((prev) => ({ ...prev, [dateStr]: data }));
+      } catch (err) {
+        toast(err.response?.data?.message || 'Failed to load tickets', 'error');
+      } finally {
+        setFolderLoading((prev) => ({ ...prev, [dateStr]: false }));
+      }
     }
   };
 
-  const handleUploaded = (id, updatedBooking) => {
-    setCompleted((prev) => prev.map((b) => b._id === id ? { ...b, ...updatedBooking } : b));
-    setSent((prev) => prev.map((b) => b._id === id ? { ...b, ...updatedBooking } : b));
+  const handleAutoUploaded = () => {
+    // Refresh the folder list when a PDF is matched in the background
+    fetchFolders();
   };
-
-  const handleSent = (updated) => {
-    setCompleted((prev) => prev.filter((b) => b._id !== updated._id));
-    setSent((prev) => {
-      const exists = prev.find((b) => b._id === updated._id);
-      if (exists) return prev.map((b) => b._id === updated._id ? updated : b);
-      return [updated, ...prev];
-    });
-  };
-
-  const handleRecoverOldData = async () => {
-    if (!window.confirm('Recover old bookings that may not be visible in your current account?')) return;
-    try {
-      const { data } = await claimOrphans();
-      toast(data.message || 'Recovered old bookings');
-      fetchHistory();
-    } catch {
-      toast('Failed to recover old booking data', 'error');
-    }
-  };
-
-  const handleAutoUploaded = (updatedBooking) => {
-    setCompleted((prev) => prev.map((b) => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));
-    setSent((prev) => prev.map((b) => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));
-  };
-
-  const handlePhoneSave = (booking, type) => {
-    const val = editingPhone[booking._id];
-    if (val !== undefined && val !== booking.phone) saveField(booking._id, 'phone', val, type);
-    setEditingPhone((prev) => { const n = { ...prev }; delete n[booking._id]; return n; });
-  };
-
-  const tabs = [
-    { key: 'completed', label: <><FiCheckCircle style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} /> Completed & Paid</>, count: completed.length },
-    { key: 'sent', label: <><FiSend style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} /> Sent Tickets</>, count: sent.length },
-  ];
-
-  const filterData = (list) => {
-    if (!searchQuery) return list;
-    const q = searchQuery.toLowerCase();
-    return list.filter(b => 
-      b.member1?.toLowerCase().includes(q) || 
-      b.phone?.includes(q)
-    );
-  };
-
-  const data = filterData(activeTab === 'completed' ? completed : sent);
-
-  const PhoneCell = ({ b }) => (
-    editingPhone[b._id] !== undefined ? (
-      <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
-        <input type="tel" value={editingPhone[b._id]}
-          onChange={(e) => setEditingPhone((prev) => ({ ...prev, [b._id]: e.target.value }))}
-          style={{ border: '1.5px solid var(--primary)', borderRadius: '4px', padding: '0.25rem 0.4rem', fontSize: '0.82rem', width: '120px' }}
-          maxLength={13} autoFocus />
-        <button className="btn btn-sm btn-primary" style={{ padding: '0.2rem 0.5rem' }} onClick={() => handlePhoneSave(b, activeTab)}><FiCheck /></button>
-        <button className="btn btn-sm btn-outline" style={{ padding: '0.2rem 0.5rem' }} onClick={() => setEditingPhone((prev) => { const n = { ...prev }; delete n[b._id]; return n; })}><FiX /></button>
-      </div>
-    ) : (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-        <span style={{ fontSize: '0.82rem' }}>{b.phone}</span>
-        <button className="btn btn-sm btn-outline" style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem' }}
-          onClick={() => setEditingPhone((prev) => ({ ...prev, [b._id]: b.phone }))}><FiEdit2 /></button>
-      </div>
-    )
-  );
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
         <div>
           <h2 style={{ fontSize: '1.2rem', color: 'var(--primary)', margin: 0, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-            <LuHistory className="icon-glow" /> History
+            <LuHistory className="icon-glow" /> History Archive
           </h2>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Manage completed, paid, and sent records</p>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>View completed, sent, and active records in a structured archive</p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flex: 1, justifyContent: 'flex-end', minWidth: '300px' }}>
           <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
@@ -218,13 +148,10 @@ const History = () => {
             />
           </div>
           <select className="sort-select" value={sort} onChange={(e) => setSort(e.target.value)}>
-            <option value="desc">Visit Date ↓</option>
-            <option value="asc">Visit Date ↑</option>
+            <option value="desc">Bookers Date ↓</option>
+            <option value="asc">Bookers Date ↑</option>
             <option value="phone">Phone Number</option>
           </select>
-          <button className="btn btn-primary btn-sm" onClick={handleRecoverOldData} style={{ whiteSpace: 'nowrap' }}>
-            <TbDatabaseImport className="icon-spin" /> Recover Old Data
-          </button>
         </div>
       </div>
 
@@ -266,263 +193,259 @@ const History = () => {
       {subSection === 'reports' && (
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem', background: 'var(--surface)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Reports Scope:</span>
-          <span className="btn btn-sm btn-primary" style={{ pointerEvents: 'none' }}>Current Calendar Month</span>
+          <span className="btn btn-sm btn-primary" style={{ pointerEvents: 'none' }}>Active & Pending Bookings</span>
         </div>
       )}
 
       {subSection === 'further' && (
         <div className="reminder-banner" style={{ borderLeft: '4px solid var(--primary)', marginBottom: '1rem', background: 'rgba(59, 130, 246, 0.08)' }}>
           <span className="icon"><FiActivity className="icon-glow" style={{ color: 'var(--accent)' }} /></span>
-          <span style={{ color: 'var(--text)', fontSize: '0.85rem' }}><strong>Shadow Archive:</strong> Displaying all historical records entered before the current weekly period.</span>
+          <span style={{ color: 'var(--text)', fontSize: '0.85rem' }}><strong>Future Bookings:</strong> Displaying all future visit date bookings. Done/Sent bookings are excluded.</span>
         </div>
       )}
 
-      <AutoPdfDropzone onUploadSuccess={handleAutoUploaded} />
+      {/* Stats Summary for Each Section */}
+      {stats && (
+        <>
+          {subSection === 'weekly' && (
+            <div className="stats-bar" style={{ marginBottom: '1.5rem' }}>
+              <div className="stat-card">
+                <span className="stat-icon"><FiClipboard className="icon-float" /></span>
+                <div className="stat-info">
+                  <div className="label">Total Records</div>
+                  <div className="value">{stats.count || 0}</div>
+                </div>
+              </div>
+              <div className="stat-card">
+                <span className="stat-icon"><FiCheckCircle className="icon-float" style={{ color: 'var(--success)' }} /></span>
+                <div className="stat-info">
+                  <div className="label">Completed & Paid</div>
+                  <div className="value">{stats.completedCount || 0}</div>
+                </div>
+              </div>
+              <div className="stat-card">
+                <span className="stat-icon"><FiSend className="icon-float" style={{ color: 'var(--primary)' }} /></span>
+                <div className="stat-info">
+                  <div className="label">Tickets Sent</div>
+                  <div className="value">{stats.sentCount || 0}</div>
+                </div>
+              </div>
+            </div>
+          )}
+          {subSection === 'reports' && (
+            <div className="stats-bar financial-stats" style={{ marginBottom: '1.5rem' }}>
+              <div className="stat-card">
+                <span className="stat-icon"><FiClipboard className="icon-float" /></span>
+                <div className="stat-info">
+                  <div className="label">Active Tickets</div>
+                  <div className="value">{stats.count || 0}</div>
+                </div>
+              </div>
+              <div className="stat-card money">
+                <span className="stat-icon"><FiDollarSign className="icon-float" style={{ color: 'var(--accent)' }} /></span>
+                <div className="stat-info">
+                  <div className="label">Active Amount</div>
+                  <div className="value">₹{stats.totalAmount || 0}</div>
+                </div>
+              </div>
+              <div className="stat-card profit">
+                <span className="stat-icon"><HiTrendingUp className="icon-float" style={{ color: 'var(--success)' }} /></span>
+                <div className="stat-info">
+                  <div className="label">Active Profit</div>
+                  <div className="value">₹{stats.totalProfit || 0}</div>
+                </div>
+              </div>
+              <div className="stat-card">
+                <span className="stat-icon"><FiCheckCircle className="icon-float" style={{ color: 'var(--success)' }} /></span>
+                <div className="stat-info">
+                  <div className="label">Paid (Active)</div>
+                  <div className="value">{stats.paidCount || 0}</div>
+                </div>
+              </div>
+            </div>
+          )}
+          {subSection === 'further' && (
+            <div className="stats-bar" style={{ marginBottom: '1.5rem' }}>
+              <div className="stat-card">
+                <span className="stat-icon"><FiClipboard className="icon-float" /></span>
+                <div className="stat-info">
+                  <div className="label">Future Bookings</div>
+                  <div className="value">{stats.count || 0}</div>
+                </div>
+              </div>
+              <div className="stat-card">
+                <span className="stat-icon"><FiCheckCircle className="icon-float" style={{ color: 'var(--success)' }} /></span>
+                <div className="stat-info">
+                  <div className="label">Paid (Future)</div>
+                  <div className="value">{stats.paidCount || 0}</div>
+                </div>
+              </div>
+              <div className="stat-card">
+                <span className="stat-icon"><FiX className="icon-float" style={{ color: 'var(--danger)' }} /></span>
+                <div className="stat-info">
+                  <div className="label">Unpaid (Future)</div>
+                  <div className="value">{stats.unpaidCount || 0}</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
-      <div className="stats-bar">
-        <div className="stat-card">
-          <span className="stat-icon"><FiCheckCircle className="icon-float" style={{ color: 'var(--success)' }} /></span>
-          <div className="stat-info"><div className="label">Completed & Paid</div><div className="value">{completed.length}</div></div>
-        </div>
-        <div className="stat-card">
-          <span className="stat-icon"><FiSend className="icon-float" style={{ color: 'var(--primary)' }} /></span>
-          <div className="stat-info"><div className="label">Tickets Sent</div><div className="value">{sent.length}</div></div>
-        </div>
-      </div>
+      {/* Auto PDF Dropzone (Only relevant for matching/uploading to completed & paid) */}
+      {subSection === 'weekly' && (
+        <AutoPdfDropzone onUploadSuccess={handleAutoUploaded} />
+      )}
 
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-        {tabs.map((t) => (
-          <button key={t.key} className={`filter-tab ${activeTab === t.key ? 'active' : ''}`} onClick={() => setActiveTab(t.key)}>
-            {t.label}
-            <span style={{ marginLeft: '0.4rem', background: activeTab === t.key ? 'rgba(255,255,255,0.3)' : 'var(--primary-light)', color: activeTab === t.key ? '#fff' : 'var(--primary)', borderRadius: '10px', padding: '0.1rem 0.5rem', fontSize: '0.75rem', fontWeight: 700 }}>{t.count}</span>
-          </button>
-        ))}
-      </div>
-
+      {/* Folders List */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading history...</div>
-      ) : data.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+          <FiActivity className="icon-spin" style={{ fontSize: '2rem', marginBottom: '0.5rem' }} />
+          <div>Loading Archive Folders...</div>
+        </div>
+      ) : folders.length === 0 ? (
         <div className="table-wrapper">
           <div className="empty-state">
             <div className="icon">
-              {activeTab === 'completed' 
-                ? <FiCheckCircle className="icon-float" style={{ fontSize: '3rem', color: 'var(--success)' }} /> 
-                : <FiSend className="icon-float" style={{ fontSize: '3rem', color: 'var(--primary)' }} />
-              }
+              <FiFolderMinus className="icon-float" style={{ fontSize: '3rem', color: 'var(--text-muted)' }} />
             </div>
-            <p>{activeTab === 'completed' ? 'No completed & paid bookings yet.' : 'No sent tickets yet.'}</p>
+            <p>No archived tickets found for this period.</p>
           </div>
         </div>
-      ) : (() => {
-        const groups = {};
-        data.forEach((b) => {
-          const dateKey = b.visitDate ? fmt(b.visitDate) : 'No Date';
-          if (!groups[dateKey]) groups[dateKey] = [];
-          groups[dateKey].push(b);
-        });
+      ) : (
+        <div className="history-folders-container">
+          {folders.map((folder) => {
+            const isExpanded = !!expandedFolders[folder._id];
+            const tickets = folderTickets[folder._id] || [];
+            const isLoadingTickets = !!folderLoading[folder._id];
 
-        const sortedDateKeys = Object.keys(groups).sort((a, b) => {
-          const dateA = new Date(groups[a][0].visitDate || 0);
-          const dateB = new Date(groups[b][0].visitDate || 0);
-          return sort === 'asc' ? dateA - dateB : dateB - dateA;
-        });
-
-        const totalCols = (activeTab === 'sent') ? 12 : 11;
-
-        return (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
-              <PrintButton bookings={data} title={activeTab === 'completed' ? 'Completed & Paid' : 'Sent Tickets'} />
-            </div>
-
-            {/* Desktop Table */}
-            <div className="table-wrapper">
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>#</th><th>Bookers Date</th><th>Booked Date</th><th>Phone</th>
-                      <th>Gothram</th><th>Member 1</th><th>Member 2</th>
-                      <th><FiDollarSign style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} /> Paid</th>
-                      <th><FiCheckCircle style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} /> Done</th>
-                      {activeTab === 'sent' && (
-                        <th><FiSend style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} /> Sent At</th>
+            return (
+              <div key={folder._id} className="history-folder-card">
+                <div className="history-folder-header" onClick={() => toggleFolder(folder._id)}>
+                  <div className="folder-title-area">
+                    <FiFolder className="folder-icon" />
+                    <span className="folder-date-text">{formatDateStr(folder._id)}</span>
+                  </div>
+                  <div className="folder-badge-area">
+                    <span className="ticket-count-badge">{folder.count} {folder.count === 1 ? 'Ticket' : 'Tickets'}</span>
+                    {isExpanded ? <FiChevronUp className="folder-chevron expanded" /> : <FiChevronDown className="folder-chevron" />}
+                  </div>
+                </div>
+                <div className={`history-folder-content ${isExpanded ? 'expanded' : ''}`}>
+                  {isExpanded && (
+                    <>
+                      {isLoadingTickets ? (
+                        <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                          <FiActivity className="icon-spin" style={{ marginRight: '0.5rem' }} />
+                          Loading tickets...
+                        </div>
+                      ) : tickets.length === 0 ? (
+                        <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                          No tickets found.
+                        </div>
+                      ) : (
+                        <div className="folder-tickets-grid">
+                          {tickets.map((t) => (
+                            <div key={t._id} className="history-ticket-card" onClick={() => setSelectedTicket(t)}>
+                              <div className="ticket-card-name">
+                                {t.member1}{t.member2 ? ` & ${t.member2}` : ''}
+                              </div>
+                              <div className="ticket-card-meta">
+                                <span><FiClock /> {t.slotTime || 'No slot assigned'}</span>
+                                <span><FiPhone /> {t.phone}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       )}
-                      <th><FiFileText style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} /> PDF</th><th>Actions</th>
-                    </tr>
-                  </thead>
-                  {sortedDateKeys.map((dateKey) => (
-                    <tbody key={dateKey}>
-                      <tr style={{ background: 'var(--primary-light)', fontWeight: 'bold' }}>
-                        <td colSpan={totalCols} style={{ color: 'var(--primary)', padding: '0.65rem 0.8rem', fontSize: '0.85rem' }}>
-                          <FiCalendar style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} /> Visit Date: {dateKey} — ({groups[dateKey].length} Booking{groups[dateKey].length > 1 ? 's' : ''})
-                        </td>
-                      </tr>
-                      {groups[dateKey].map((b) => (
-                        <tr key={b._id} className={`${activeTab === 'sent' ? 'sent-row' : ''}`} style={subSection === 'further' ? { animation: 'shadowSummon 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) forwards' } : {}}>
-                          <td><div className="serial-no">{b.serialNo}</div></td>
-                          <td>{fmt(b.bookingDate)}</td>
-                          <td>
-                            <div>{fmt(b.visitDate)}</div>
-                            <div style={{ marginTop: '0.25rem' }}>
-                              <select
-                                value={b.slotTime || ''}
-                                onChange={(e) => saveField(b._id, 'slotTime', e.target.value, activeTab)}
-                                style={{
-                                  border: '1px solid var(--border)',
-                                  borderRadius: '4px',
-                                  padding: '0.1rem 0.2rem',
-                                  fontSize: '0.72rem',
-                                  background: 'var(--surface)',
-                                  color: 'var(--text-muted)',
-                                  width: '100%',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                <option value="">— Slot —</option>
-                                <option value="6am-7am">6am-7am</option>
-                                <option value="7am-8am">7am-8am</option>
-                                <option value="8am-9am">8am-9am</option>
-                                <option value="9am-10am">9am-10am</option>
-                              </select>
-                            </div>
-                          </td>
-                          <td><PhoneCell b={b} /></td>
-                          <td>{b.gothram || '—'}</td>
-                          <td style={{ fontWeight: 600 }}>{b.member1}</td>
-                          <td>{b.member2 || '—'}</td>
-                           <td className="checkbox-cell" onClick={() => saveField(b._id, 'paid', !b.paid, activeTab)} style={{ cursor: 'pointer' }}>
-                            {b.paid ? <FiCheck style={{ color: 'var(--success)', fontSize: '1.1rem' }} /> : <FiX style={{ color: 'var(--danger)', fontSize: '1.1rem' }} />}
-                          </td>
-                          <td className="checkbox-cell" onClick={() => saveField(b._id, 'completed', !b.completed, activeTab)} style={{ cursor: 'pointer' }}>
-                            {b.completed ? <FiCheck style={{ color: 'var(--success)', fontSize: '1.1rem' }} /> : <FiX style={{ color: 'var(--danger)', fontSize: '1.1rem' }} />}
-                          </td>
-                          {activeTab === 'sent' && (
-                            <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
-                              {b.sentAt ? <span style={{ color: 'var(--success)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiSend /> {fmtTime(b.sentAt)}</span> : '—'}
-                            </td>
-                          )}
-                          <td><UploadCell booking={b} onUploaded={handleUploaded} /></td>
-                          <td>
-                            <div className="row-actions">
-                              <SendButton booking={b} onSent={handleSent} />
-                              <SendButton booking={b} isReminder onSent={handleSent} />
-                              <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(b._id, activeTab)} title="Delete"><FiTrash2 /></button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  ))}
-                </table>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Ticket Detail Modal */}
+      {selectedTicket && (
+        <div className="history-modal-overlay" onClick={() => setSelectedTicket(null)}>
+          <div className="history-modal-container" onClick={(e) => e.stopPropagation()}>
+            <div className="history-modal-header">
+              <h3 className="history-modal-title">Ticket Details</h3>
+              <button className="history-modal-close" onClick={() => setSelectedTicket(null)}>
+                <FiX />
+              </button>
+            </div>
+            <div className="history-modal-body">
+              <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                <h4 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--primary)', fontWeight: 700 }}>
+                  {selectedTicket.member1}
+                  {selectedTicket.member2 ? ` & ${selectedTicket.member2}` : ''}
+                </h4>
+              </div>
+              
+              <div className="history-modal-row">
+                <span className="history-modal-label">Booked:</span>
+                <span className="history-modal-value">{formatDateStr(selectedTicket.bookingDate)}</span>
+              </div>
+              <div className="history-modal-row">
+                <span className="history-modal-label">Timeslot:</span>
+                <span className="history-modal-value">{selectedTicket.slotTime || '—'}</span>
+              </div>
+              <div className="history-modal-row">
+                <span className="history-modal-label">Phone:</span>
+                <span className="history-modal-value">{selectedTicket.phone}</span>
+              </div>
+              <div className="history-modal-row">
+                <span className="history-modal-label">Gothram:</span>
+                <span className="history-modal-value">{selectedTicket.gothram || '—'}</span>
+              </div>
+              <div className="history-modal-row">
+                <span className="history-modal-label">Member 1:</span>
+                <span className="history-modal-value">{selectedTicket.member1}</span>
+              </div>
+              <div className="history-modal-row">
+                <span className="history-modal-label">Member 2:</span>
+                <span className="history-modal-value">{selectedTicket.member2 || '—'}</span>
+              </div>
+              <div className="history-modal-row">
+                <span className="history-modal-label">Bookers Date:</span>
+                <span className="history-modal-value">{formatDateStr(selectedTicket.bookingDate)}</span>
+              </div>
+              <div className="history-modal-row">
+                <span className="history-modal-label">Visit Date:</span>
+                <span className="history-modal-value">{formatDateStr(selectedTicket.visitDate)}</span>
+              </div>
+              <div className="history-modal-row">
+                <span className="history-modal-label">Paid:</span>
+                <span className="history-modal-value">{selectedTicket.paid ? 'Yes' : 'No'}</span>
+              </div>
+              <div className="history-modal-row">
+                <span className="history-modal-label">Completed:</span>
+                <span className="history-modal-value">{selectedTicket.completed ? 'Yes' : 'No'}</span>
+              </div>
+              <div className="history-modal-row">
+                <span className="history-modal-label">PDF Status:</span>
+                <span className="history-modal-value">
+                  {selectedTicket.pdfUrl ? (
+                    <a 
+                      href={selectedTicket.pdfUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      style={{ color: 'var(--primary)', textDecoration: 'underline' }}
+                    >
+                      Uploaded
+                    </a>
+                  ) : (
+                    <span style={{ color: 'var(--danger)' }}>Not Uploaded</span>
+                  )}
+                </span>
               </div>
             </div>
-
-            {/* Mobile Cards */}
-            <div className="booking-cards" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              {sortedDateKeys.map((dateKey) => (
-                <div key={dateKey} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <div style={{ background: 'var(--primary)', color: '#fff', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><FiCalendar /> Visit Date: {dateKey}</span>
-                    <span style={{ background: 'rgba(255,255,255,0.25)', padding: '0.1rem 0.5rem', borderRadius: '10px', fontSize: '0.75rem' }}>{groups[dateKey].length} Booking{groups[dateKey].length > 1 ? 's' : ''}</span>
-                  </div>
-                  {groups[dateKey].map((b) => (
-                    <div key={b._id} className={`booking-card${activeTab === 'sent' ? ' sent-card' : ''} ${subSection === 'further' ? 'shadow-archive-card' : ''}`}>
-                      <div className="booking-card-header">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                          <div className="card-serial">{b.serialNo}</div>
-                          <div>
-                            <div className="card-name">{b.member1}{b.member2 ? ` & ${b.member2}` : ''}</div>
-                            <div className="card-date" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', flexWrap: 'wrap' }}>
-                              <FiCalendar /> Booked: {fmt(b.visitDate)} {b.slotTime && <>| <FiClock /> {b.slotTime}</>}
-                            </div>
-                          </div>
-                        </div>
-                        <button className="btn btn-danger btn-sm btn-icon"
-                          onClick={() => handleDelete(b._id, activeTab)}><FiTrash2 /></button>
-                      </div>
-                      <div className="booking-card-body">
-                        <div className="card-row">
-                          <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiPhone /> Phone</span>
-                          <PhoneCell b={b} />
-                        </div>
-                        {b.gothram && (
-                          <div className="card-row">
-                            <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiHome /> Gothram</span>
-                            <span className="card-value">{b.gothram}</span>
-                          </div>
-                        )}
-                        <div className="card-row">
-                          <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiUser /> Member 1</span>
-                          <span className="card-value" style={{ fontWeight: 600 }}>{b.member1}</span>
-                        </div>
-                        {b.member2 && (
-                          <div className="card-row">
-                            <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiUser /> Member 2</span>
-                            <span className="card-value">{b.member2}</span>
-                          </div>
-                        )}
-                        <div className="card-row">
-                          <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiCalendar /> Bookers Date</span>
-                          <span className="card-value">{fmt(b.bookingDate)}</span>
-                        </div>
-                        <div className="card-row">
-                          <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiClock /> Timeslot</span>
-                          <select
-                            value={b.slotTime || ''}
-                            onChange={(e) => saveField(b._id, 'slotTime', e.target.value, activeTab)}
-                            style={{
-                              border: '1px solid var(--border)',
-                              borderRadius: '4px',
-                              padding: '0.2rem 0.4rem',
-                              fontSize: '0.78rem',
-                              background: 'var(--surface)',
-                              color: 'var(--text)',
-                              width: '120px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <option value="">— Slot —</option>
-                            <option value="6am-7am">6am-7am</option>
-                            <option value="7am-8am">7am-8am</option>
-                            <option value="8am-9am">8am-9am</option>
-                            <option value="9am-10am">9am-10am</option>
-                          </select>
-                        </div>
-                        <div className="card-row">
-                          <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiDollarSign /> Paid</span>
-                          <span className="card-value" onClick={() => saveField(b._id, 'paid', !b.paid, activeTab)} style={{ cursor: 'pointer' }}>
-                            {b.paid ? <><FiCheck style={{ color: 'var(--success)' }} /> Yes</> : <><FiX style={{ color: 'var(--danger)' }} /> No</>}
-                          </span>
-                        </div>
-                        <div className="card-row">
-                          <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiCheckCircle /> Done</span>
-                          <span className="card-value" onClick={() => saveField(b._id, 'completed', !b.completed, activeTab)} style={{ cursor: 'pointer' }}>
-                            {b.completed ? <><FiCheck style={{ color: 'var(--success)' }} /> Yes</> : <><FiX style={{ color: 'var(--danger)' }} /> No</>}
-                          </span>
-                        </div>
-                        {activeTab === 'sent' && b.sentAt && (
-                          <div className="card-row">
-                            <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiSend /> Sent At</span>
-                            <span className="card-value" style={{ color: 'var(--success)', fontWeight: 600, fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
-                              <FiSend /> {fmtTime(b.sentAt)}
-                            </span>
-                          </div>
-                        )}
-                        <div style={{ paddingTop: '0.5rem' }}><UploadCell booking={b} onUploaded={handleUploaded} /></div>
-                      </div>
-                      <div className="card-actions">
-                        <SendButton booking={b} onSent={handleSent} />
-                        <SendButton booking={b} isReminder onSent={handleSent} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </>
-        );
-      })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

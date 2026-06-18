@@ -402,4 +402,159 @@ const claimOrphans = async (req, res) => {
   }
 };
 
-module.exports = { getAll, create, update, remove, uploadPdf, uploadAutoPdf, getReminderBookings, getTotalCount, getStats, claimOrphans };
+const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate) => {
+  let filter = { createdBy: adminId };
+  
+  const { getCurrentWeekStart, getCurrentWeekEnd } = require('../services/weeklyStatsService');
+  const startOfWeek = getCurrentWeekStart();
+  const endOfWeek = getCurrentWeekEnd(startOfWeek);
+
+  if (subSection === 'weekly') {
+    // Weekly History: Shows completed and sent tickets only
+    filter.$or = [{ completed: true }, { pdfSent: true }];
+
+    // Apply weekly/custom date filters on createdAt
+    if (dateFilter === 'current_week') {
+      filter.createdAt = { $gte: startOfWeek, $lte: endOfWeek };
+    } else if (dateFilter === 'previous_week') {
+      const prevStartOfWeek = new Date(startOfWeek);
+      prevStartOfWeek.setDate(startOfWeek.getDate() - 7);
+      const prevEndOfWeek = new Date(endOfWeek);
+      prevEndOfWeek.setDate(endOfWeek.getDate() - 7);
+      filter.createdAt = { $gte: prevStartOfWeek, $lte: prevEndOfWeek };
+    } else if (dateFilter === 'custom' && startDate && endDate) {
+      const sD = new Date(startDate);
+      sD.setHours(0, 0, 0, 0);
+      const eD = new Date(endDate);
+      eD.setHours(23, 59, 59, 999);
+      filter.createdAt = { $gte: sD, $lte: eD };
+    }
+  } else if (subSection === 'reports') {
+    // Reports: Shows active/non-completed/non-sent records
+    filter.completed = false;
+    filter.pdfSent = false;
+  } else if (subSection === 'further') {
+    // Further Date Bookings: Shows future bookings only (non-completed, non-sent)
+    filter.completed = false;
+    filter.pdfSent = false;
+    filter.visitDate = { $gt: new Date() };
+  }
+
+  return filter;
+};
+
+const getHistoryFolders = async (req, res) => {
+  try {
+    const { subSection, dateFilter, startDate, endDate, searchQuery, sort } = req.query;
+    const baseFilter = buildHistoryFilter(req.admin.id, subSection, dateFilter, startDate, endDate);
+    
+    // Add search query if present
+    if (searchQuery) {
+      const regex = { $regex: searchQuery, $options: 'i' };
+      baseFilter.$and = baseFilter.$and || [];
+      baseFilter.$and.push({
+        $or: [
+          { member1: regex },
+          { phone: regex }
+        ]
+      });
+    }
+
+    // First, get the folder counts grouped by bookingDate (formatted as YYYY-MM-DD)
+    const pipeline = [
+      { $match: baseFilter },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$bookingDate" } },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: sort === 'asc' ? 1 : -1 } }
+    ];
+
+    const folders = await Booking.aggregate(pipeline);
+
+    // Also get statistical summary for 'reports' or general history
+    const statsPipeline = [
+      { $match: baseFilter },
+      {
+        $group: {
+          _id: null,
+          count: { $sum: 1 },
+          totalAmount: { $sum: { $ifNull: ["$amount", 200] } },
+          totalProfit: { $sum: { $ifNull: ["$profit", 50] } },
+          paidCount: {
+            $sum: { $cond: ["$paid", 1, 0] }
+          },
+          unpaidCount: {
+            $sum: { $cond: ["$paid", 0, 1] }
+          },
+          completedCount: {
+            $sum: { $cond: ["$completed", 1, 0] }
+          },
+          sentCount: {
+            $sum: { $cond: ["$pdfSent", 1, 0] }
+          }
+        }
+      }
+    ];
+
+    const statsResult = await Booking.aggregate(statsPipeline);
+    const stats = statsResult[0] || { count: 0, totalAmount: 0, totalProfit: 0, paidCount: 0, unpaidCount: 0, completedCount: 0, sentCount: 0 };
+
+    res.json({ folders, stats });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const getHistoryTickets = async (req, res) => {
+  try {
+    const { subSection, dateFilter, startDate, endDate, searchQuery, bookingDate, sort } = req.query;
+    const baseFilter = buildHistoryFilter(req.admin.id, subSection, dateFilter, startDate, endDate);
+    
+    if (bookingDate) {
+      const startOfDay = new Date(bookingDate);
+      startOfDay.setUTCHours(0, 0, 0, 0);
+      const endOfDay = new Date(bookingDate);
+      endOfDay.setUTCHours(23, 59, 59, 999);
+      baseFilter.bookingDate = { $gte: startOfDay, $lte: endOfDay };
+    }
+
+    if (searchQuery) {
+      const regex = { $regex: searchQuery, $options: 'i' };
+      baseFilter.$and = baseFilter.$and || [];
+      baseFilter.$and.push({
+        $or: [
+          { member1: regex },
+          { phone: regex }
+        ]
+      });
+    }
+
+    let sortObj = { visitDate: sort === 'asc' ? 1 : -1, phone: 1 };
+    if (sort === 'phone') {
+      sortObj = { phone: 1, visitDate: 1 };
+    }
+
+    const tickets = await Booking.find(baseFilter).sort(sortObj).lean();
+    res.json(tickets);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+module.exports = {
+  getAll,
+  create,
+  update,
+  remove,
+  uploadPdf,
+  uploadAutoPdf,
+  getReminderBookings,
+  getTotalCount,
+  getStats,
+  claimOrphans,
+  getHistoryFolders,
+  getHistoryTickets
+};
