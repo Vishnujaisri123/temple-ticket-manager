@@ -459,32 +459,32 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate,
       // Tickets Sent: pdfUrl is not empty/null OR pdfSent is true
       filter.$or = [
         { pdfSent: true },
-        { pdfUrl: { $ne: '', $ne: null, $exists: true } }
+        { pdfUrl: { $nin: ['', null] } }
       ];
     } else {
       // All Tickets (Weekly History): Shows completed, sent, and pdf-attached tickets
       filter.$or = [
         { completed: true },
         { pdfSent: true },
-        { pdfUrl: { $ne: '', $ne: null, $exists: true } }
+        { pdfUrl: { $nin: ['', null] } }
       ];
+    }
 
-      // Apply weekly/custom date filters on createdAt
-      if (dateFilter === 'current_week') {
-        filter.createdAt = { ...filter.createdAt, $gte: startOfWeek, $lte: endOfWeek };
-      } else if (dateFilter === 'previous_week') {
-        const prevStartOfWeek = new Date(startOfWeek);
-        prevStartOfWeek.setDate(startOfWeek.getDate() - 7);
-        const prevEndOfWeek = new Date(endOfWeek);
-        prevEndOfWeek.setDate(endOfWeek.getDate() - 7);
-        filter.createdAt = { ...filter.createdAt, $gte: prevStartOfWeek, $lte: prevEndOfWeek };
-      } else if (dateFilter === 'custom' && startDate && endDate) {
-        const sD = new Date(startDate);
-        sD.setHours(0, 0, 0, 0);
-        const eD = new Date(endDate);
-        eD.setHours(23, 59, 59, 999);
-        filter.createdAt = { ...filter.createdAt, $gte: sD, $lte: eD };
-      }
+    // Apply weekly/custom date filters on createdAt
+    if (dateFilter === 'current_week') {
+      filter.createdAt = { ...filter.createdAt, $gte: startOfWeek, $lte: endOfWeek };
+    } else if (dateFilter === 'previous_week') {
+      const prevStartOfWeek = new Date(startOfWeek);
+      prevStartOfWeek.setDate(startOfWeek.getDate() - 7);
+      const prevEndOfWeek = new Date(endOfWeek);
+      prevEndOfWeek.setDate(endOfWeek.getDate() - 7);
+      filter.createdAt = { ...filter.createdAt, $gte: prevStartOfWeek, $lte: prevEndOfWeek };
+    } else if (dateFilter === 'custom' && startDate && endDate) {
+      const sD = new Date(startDate);
+      sD.setHours(0, 0, 0, 0);
+      const eD = new Date(endDate);
+      eD.setHours(23, 59, 59, 999);
+      filter.createdAt = { ...filter.createdAt, $gte: sD, $lte: eD };
     }
   } else if (subSection === 'completed') {
     // Completed Tickets (Legacy/Alias)
@@ -493,7 +493,7 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate,
   } else if (subSection === 'sent') {
     // Sent Tickets (Legacy/Alias)
     filter.pdfSent = true;
-    filter.pdfUrl = { $ne: '', $ne: null, $exists: true };
+    filter.pdfUrl = { $nin: ['', null] };
   } else if (subSection === 'reports') {
     // Reports: Shows active/non-completed/non-sent records
     filter.completed = false;
@@ -560,19 +560,44 @@ const getHistoryFolders = async (req, res) => {
       const mongoose = require('mongoose');
       const adminObjId = new mongoose.Types.ObjectId(req.admin.id);
 
+      const { getCurrentWeekStart, getCurrentWeekEnd } = require('../services/weeklyStatsService');
+      const startOfWeek = getCurrentWeekStart();
+      const endOfWeek = getCurrentWeekEnd(startOfWeek);
+
+      let weeklyBaseFilter = {
+        createdBy: adminObjId,
+        createdAt: { $exists: true, $ne: null }
+      };
+
+      if (dateFilter === 'current_week') {
+        weeklyBaseFilter.createdAt = { ...weeklyBaseFilter.createdAt, $gte: startOfWeek, $lte: endOfWeek };
+      } else if (dateFilter === 'previous_week') {
+        const prevStartOfWeek = new Date(startOfWeek);
+        prevStartOfWeek.setDate(startOfWeek.getDate() - 7);
+        const prevEndOfWeek = new Date(endOfWeek);
+        prevEndOfWeek.setDate(endOfWeek.getDate() - 7);
+        weeklyBaseFilter.createdAt = { ...weeklyBaseFilter.createdAt, $gte: prevStartOfWeek, $lte: prevEndOfWeek };
+      } else if (dateFilter === 'custom' && startDate && endDate) {
+        const sD = new Date(startDate);
+        sD.setHours(0, 0, 0, 0);
+        const eD = new Date(endDate);
+        eD.setHours(23, 59, 59, 999);
+        weeklyBaseFilter.createdAt = { ...weeklyBaseFilter.createdAt, $gte: sD, $lte: eD };
+      }
+
       // Total Records: completed = true OR pdfSent = true OR pdfUrl not empty
       const weeklyTotalCount = await Booking.countDocuments({
-        createdBy: adminObjId,
+        ...weeklyBaseFilter,
         $or: [
           { completed: true },
           { pdfSent: true },
-          { pdfUrl: { $ne: '', $ne: null, $exists: true } }
+          { pdfUrl: { $nin: ['', null] } }
         ]
       });
 
       // Completed & Paid: completed = true AND paid = true AND pdfUrl is empty/null/missing
       const weeklyCompletedPaidCount = await Booking.countDocuments({
-        createdBy: adminObjId,
+        ...weeklyBaseFilter,
         completed: true,
         paid: true,
         $or: [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }]
@@ -580,10 +605,10 @@ const getHistoryFolders = async (req, res) => {
 
       // Tickets Sent: pdfUrl not empty OR pdfSent = true
       const weeklySentCount = await Booking.countDocuments({
-        createdBy: adminObjId,
+        ...weeklyBaseFilter,
         $or: [
           { pdfSent: true },
-          { pdfUrl: { $ne: '', $ne: null, $exists: true } }
+          { pdfUrl: { $nin: ['', null] } }
         ]
       });
 
