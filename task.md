@@ -1,2 +1,3 @@
-- [x] Update backend `bookingController.js` (replace duplicate keys with $nin filter)
+- [x] Update backend `bookingController.js` (replace duplicate keys with $nin filter and align count calculations)
 - [x] Verify build compiles successfully
+- [x] Create and run automated verification script to validate count and categorization accuracy

@@ -32,16 +32,6 @@ const getCurrentWeekEnd = (startOfWeek) => {
  * @returns {Promise<Object>}
  */
 const getWeeklyStats = async (adminId) => {
-  // Auto correction: If a booking has pdfSent: true but pdfUrl is empty/null/missing, set pdfSent: false
-  await Booking.updateMany(
-    {
-      createdBy: adminId,
-      pdfSent: true,
-      $or: [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }]
-    },
-    { $set: { pdfSent: false } }
-  );
-
   const startOfWeek = getCurrentWeekStart();
   const endOfWeek = getCurrentWeekEnd(startOfWeek);
 
@@ -68,7 +58,7 @@ const getWeeklyStats = async (adminId) => {
     stats.totalAmount += amt;
     stats.totalProfit += prf;
     if (b.paid) stats.paidCount++;
-    if (b.pdfUrl && b.pdfUrl.trim() !== '') stats.sentCount++;
+    if (b.pdfSent) stats.sentCount++;
     if (b.completed) stats.completedCount++;
 
     if (b.paymentMethod === 'phonepe') stats.phonepeAmount += amt;

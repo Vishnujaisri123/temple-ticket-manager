@@ -64,9 +64,6 @@ body {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   padding: 1rem;
 }
-.auth-page.solo-leveling-theme {
-  background: transparent !important;
-}
 .auth-card {
   background: var(--surface);
   border-radius: 16px;
@@ -190,51 +187,6 @@ body {
 }
 
 .main-content { flex: 1; padding: 1rem; max-width: 1600px; margin: 0 auto; width: 100%; }
-
-.solo-leveling-theme .main-content {
-  position: relative;
-}
-
-/* Large centered security watermark resembling Government e-Stamp watermark */
-.solo-leveling-theme .main-content::before {
-  content: '';
-  position: absolute;
-  top: 10%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 70vh;
-  height: 70vh;
-  max-width: 90%;
-  background-image: url('./assets/deity.png');
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: contain;
-  opacity: 0.065; /* Faint watermark opacity (5% - 10%) */
-  /* Monochrome blue-purple tint */
-  filter: grayscale(1) sepia(1) hue-rotate(220deg) saturate(3.5) brightness(1.2) contrast(0.8);
-  mix-blend-mode: screen;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* Security stamp circles around the watermark */
-.solo-leveling-theme .main-content::after {
-  content: '';
-  position: absolute;
-  top: calc(10% - 20px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 75vh;
-  height: 75vh;
-  max-width: 95%;
-  border: 2px dashed rgba(59, 130, 246, 0.08);
-  border-radius: 50%;
-  box-shadow: 
-    0 0 0 10px rgba(59, 130, 246, 0.02),
-    inset 0 0 0 10px rgba(59, 130, 246, 0.02);
-  pointer-events: none;
-  z-index: 0;
-}
 
 /* ── Dashboard Header ── */
 .dashboard-header {
@@ -531,65 +483,19 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
 .solo-leveling-theme {
   background: var(--bg) !important;
   position: relative;
+  overflow: hidden;
 }
 
-/* Background Gradients, Circular Aura, and Dark Overlay */
 .solo-leveling-theme::before {
   content: '';
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: 
-    /* Dark overlay for readability */
-    rgba(5, 8, 22, 0.80),
-    /* Soft circular aura behind the deity */
-    radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.18) 0%, rgba(59, 130, 246, 0.06) 45%, transparent 75%),
-    /* Grid patterns / Monarch Runes (tech grid) */
-    linear-gradient(rgba(59, 130, 246, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(59, 130, 246, 0.02) 1px, transparent 1px),
-    /* Base dark mystical background gradient */
-    radial-gradient(circle at 50% 30%, var(--bg-secondary) 0%, var(--bg) 100%) !important;
-  background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px, 100% 100%;
-  z-index: -3;
+  background: radial-gradient(circle at 50% 30%, var(--bg-secondary) 0%, var(--bg) 100%) !important;
+  z-index: -1;
   pointer-events: none;
-  /* Slow energy wave animation */
-  animation: energyWave 15s infinite ease-in-out;
 }
 
-@keyframes energyWave {
-  0%, 100% { background-position: center, 50% 50%, 0 0, 0 0, center; }
-  50% { background-position: center, 48% 52%, 10px 10px, 10px 10px, center; }
-}
-
-/* Deity background artwork - Divine Shadow Monarch Sri Venkateswara Swamy */
-.solo-leveling-theme::after {
-  content: '';
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 75vh;
-  height: 75vh;
-  max-width: 90vw;
-  max-height: 90vh;
-  background-image: url('./assets/deity.png');
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  opacity: 0.18; /* 18% opacity, keeping deity visible but readable */
-  /* Blue-purple energy aura and elegant spiritual glow */
-  filter: drop-shadow(0 0 30px rgba(139, 92, 246, 0.4)) drop-shadow(0 0 60px rgba(59, 130, 246, 0.3)) hue-rotate(220deg) saturate(1.8) brightness(1.1);
-  mix-blend-mode: screen;
-  z-index: -2;
-  pointer-events: none;
-  animation: deityPulse 8s infinite ease-in-out;
-}
-
-@keyframes deityPulse {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); filter: drop-shadow(0 0 30px rgba(139, 92, 246, 0.4)) drop-shadow(0 0 60px rgba(59, 130, 246, 0.3)) hue-rotate(220deg) saturate(1.8) brightness(1.1); }
-  50% { transform: translate(-50%, -48%) scale(1.02); filter: drop-shadow(0 0 40px rgba(139, 92, 246, 0.5)) drop-shadow(0 0 80px rgba(59, 130, 246, 0.4)) hue-rotate(230deg) saturate(2) brightness(1.2); }
-}
-
-/* Glassmorphism cards / system panels with card-level watermark */
+/* Glassmorphism cards / system panels */
 .solo-leveling-theme .stat-card,
 .solo-leveling-theme .add-booking-bar,
 .solo-leveling-theme .table-wrapper,
@@ -603,29 +509,6 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   position: relative;
   overflow: hidden;
-  z-index: 1; /* Explicitly stack above the background watermark */
-}
-
-/* Faint giant watermark of Sri Venkateswara Swamy behind card elements */
-.solo-leveling-theme .stat-card::after,
-.solo-leveling-theme .add-booking-bar::after,
-.solo-leveling-theme .table-wrapper::after,
-.solo-leveling-theme .admin-stat-card::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 240px;
-  height: 240px;
-  background-image: url('./assets/deity.png');
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  opacity: 0.035; /* Faint monochrome watermark */
-  filter: grayscale(1) sepia(1) hue-rotate(220deg) saturate(2.5);
-  pointer-events: none;
-  z-index: -1;
 }
 
 /* Text Visibility Rules */
