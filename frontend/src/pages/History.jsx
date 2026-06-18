@@ -42,7 +42,7 @@ const History = () => {
 
   // Subsections inside History
   const [subSection, setSubSection] = useState('weekly'); // 'weekly' | 'reports' | 'further'
-  const [dateFilter, setDateFilter] = useState('current_week'); // 'current_week' | 'previous_week' | 'custom'
+  const [dateFilter, setDateFilter] = useState('all'); // 'all' | 'current_week' | 'previous_week' | 'custom'
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
@@ -157,7 +157,7 @@ const History = () => {
 
       {/* History Sub-navigation */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', borderBottom: '2px solid var(--border)', paddingBottom: '0.6rem', flexWrap: 'wrap' }}>
-        <button className={`nav-tab ${subSection === 'weekly' ? 'active' : ''}`} onClick={() => { setSubSection('weekly'); setDateFilter('current_week'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+        <button className={`nav-tab ${subSection === 'weekly' ? 'active' : ''}`} onClick={() => { setSubSection('weekly'); setDateFilter('all'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
           <FiCalendar /> Weekly History
         </button>
         <button className={`nav-tab ${subSection === 'reports' ? 'active' : ''}`} onClick={() => { setSubSection('reports'); setDateFilter('monthly'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
@@ -171,6 +171,9 @@ const History = () => {
       {/* Date Scope Selectors */}
       {subSection === 'weekly' && (
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem', background: 'var(--surface)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+          <button className={`btn btn-sm ${dateFilter === 'all' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setDateFilter('all')}>
+            All Time
+          </button>
           <button className={`btn btn-sm ${dateFilter === 'current_week' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setDateFilter('current_week')}>
             Current Week
           </button>
