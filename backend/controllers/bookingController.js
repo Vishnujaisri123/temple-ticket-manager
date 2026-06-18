@@ -451,22 +451,22 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate,
 
   if (subSection === 'weekly') {
     if (ticketFilter === 'completed_paid') {
-      // Completed & Paid: completed = true AND paid = true AND pdfUrl is empty/null
+      // Completed & Paid: completed = true AND paid = true AND pdfUrl is empty/null/missing
       filter.completed = true;
       filter.paid = true;
-      filter.$or = [{ pdfUrl: '' }, { pdfUrl: null }];
+      filter.$or = [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }];
     } else if (ticketFilter === 'sent') {
-      // Tickets Sent: pdfUrl is not empty OR pdfSent is true
+      // Tickets Sent: pdfUrl is not empty/null OR pdfSent is true
       filter.$or = [
         { pdfSent: true },
-        { pdfUrl: { $ne: '', $ne: null } }
+        { pdfUrl: { $ne: '', $ne: null, $exists: true } }
       ];
     } else {
       // All Tickets (Weekly History): Shows completed, sent, and pdf-attached tickets
       filter.$or = [
         { completed: true },
         { pdfSent: true },
-        { pdfUrl: { $ne: '', $ne: null } }
+        { pdfUrl: { $ne: '', $ne: null, $exists: true } }
       ];
 
       // Apply weekly/custom date filters on createdAt
@@ -489,11 +489,11 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate,
   } else if (subSection === 'completed') {
     // Completed Tickets (Legacy/Alias)
     filter.completed = true;
-    filter.$or = [{ pdfUrl: '' }, { pdfUrl: null }];
+    filter.$or = [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }];
   } else if (subSection === 'sent') {
     // Sent Tickets (Legacy/Alias)
     filter.pdfSent = true;
-    filter.pdfUrl = { $ne: '', $ne: null };
+    filter.pdfUrl = { $ne: '', $ne: null, $exists: true };
   } else if (subSection === 'reports') {
     // Reports: Shows active/non-completed/non-sent records
     filter.completed = false;
@@ -566,8 +566,16 @@ const getHistoryFolders = async (req, res) => {
         $or: [
           { completed: true },
           { pdfSent: true },
-          { pdfUrl: { $ne: '', $ne: null } }
+          { pdfUrl: { $ne: '', $ne: null, $exists: true } }
         ]
+      });
+
+      // Completed & Paid: completed = true AND paid = true AND pdfUrl is empty/null/missing
+      const weeklyCompletedPaidCount = await Booking.countDocuments({
+        createdBy: adminObjId,
+        completed: true,
+        paid: true,
+        $or: [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }]
       });
 
       // Tickets Sent: pdfUrl not empty OR pdfSent = true
@@ -575,13 +583,20 @@ const getHistoryFolders = async (req, res) => {
         createdBy: adminObjId,
         $or: [
           { pdfSent: true },
-          { pdfUrl: { $ne: '', $ne: null } }
+          { pdfUrl: { $ne: '', $ne: null, $exists: true } }
         ]
       });
 
       stats.weeklyTotalCount = weeklyTotalCount;
       stats.weeklySentCount = weeklySentCount;
-      stats.weeklyCompletedPaidCount = weeklyTotalCount - weeklySentCount;
+      stats.weeklyCompletedPaidCount = weeklyCompletedPaidCount;
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Weekly History Counts (Debug):');
+        console.log('  Total Records:', stats.weeklyTotalCount);
+        console.log('  Completed & Paid:', stats.weeklyCompletedPaidCount);
+        console.log('  Tickets Sent:', stats.weeklySentCount);
+      }
     }
 
     res.json({ folders, stats });
