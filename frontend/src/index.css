@@ -1031,42 +1031,18 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
   text-align: right;
 }
 
-/* ── Solo Leveling Shadow Archive Week Headers ── */
-.shadow-archive-header {
-  margin: 2rem 0 1rem;
-  padding: 1rem 0;
-  text-align: center;
-  position: relative;
-}
-
-.shadow-archive-header::before,
-.shadow-archive-header::after {
-  content: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
-  display: block;
-  color: var(--primary);
-  opacity: 0.3;
-  letter-spacing: 2px;
-  font-size: 0.8rem;
-  margin: 0.4rem 0;
-  text-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
-}
-
-.shadow-archive-title {
+/* ── Side Week Headings ── */
+.week-side-heading {
   font-family: 'Outfit', 'Segoe UI', sans-serif;
-  font-size: 1.25rem;
-  font-weight: 900;
-  letter-spacing: 3px;
-  text-transform: uppercase;
+  font-size: 1.1rem;
+  font-weight: 700;
   color: var(--accent);
-  text-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
-  margin: 0.25rem 0;
-}
-
-.shadow-archive-dates {
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  letter-spacing: 1px;
-  font-weight: 600;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--primary);
+  margin: 2rem 0 1rem 0;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 /* Clickable Dashboard Stats Cards */
@@ -1087,6 +1063,32 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
 .history-folder-card.open .folder-icon {
   transform: rotate(15deg) scale(1.15);
   color: var(--accent);
+}
+
+/* ── Glow Color Theme Overrides for History Sections ── */
+.theme-weekly {
+  --primary: #3B82F6; /* Blue Glow */
+  --accent: #38BDF8;
+}
+
+.theme-completed {
+  --primary: #D97706; /* Amber Glow */
+  --accent: #FBBF24;
+}
+
+.theme-sent {
+  --primary: #3B82F6; /* Blue Glow */
+  --accent: #38BDF8;
+}
+
+.theme-reports {
+  --primary: #7C3AED; /* Purple-blue Glow */
+  --accent: #A78BFA;
+}
+
+.theme-further {
+  --primary: #0891B2; /* Cyan Glow */
+  --accent: #22D3EE;
 }
 
 

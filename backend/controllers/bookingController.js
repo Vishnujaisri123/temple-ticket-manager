@@ -439,7 +439,7 @@ const applySearchQuery = (baseFilter, searchQuery) => {
 };
 
 const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate, ticketFilter) => {
-  let filter = {};
+  let filter = { createdAt: { $exists: true, $ne: null } };
   
   const { getCurrentWeekStart, getCurrentWeekEnd } = require('../services/weeklyStatsService');
   const startOfWeek = getCurrentWeekStart();
@@ -451,19 +451,19 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate,
 
     // Apply weekly/custom date filters on createdAt
     if (dateFilter === 'current_week') {
-      filter.createdAt = { $gte: startOfWeek, $lte: endOfWeek };
+      filter.createdAt = { ...filter.createdAt, $gte: startOfWeek, $lte: endOfWeek };
     } else if (dateFilter === 'previous_week') {
       const prevStartOfWeek = new Date(startOfWeek);
       prevStartOfWeek.setDate(startOfWeek.getDate() - 7);
       const prevEndOfWeek = new Date(endOfWeek);
       prevEndOfWeek.setDate(endOfWeek.getDate() - 7);
-      filter.createdAt = { $gte: prevStartOfWeek, $lte: prevEndOfWeek };
+      filter.createdAt = { ...filter.createdAt, $gte: prevStartOfWeek, $lte: prevEndOfWeek };
     } else if (dateFilter === 'custom' && startDate && endDate) {
       const sD = new Date(startDate);
       sD.setHours(0, 0, 0, 0);
       const eD = new Date(endDate);
       eD.setHours(23, 59, 59, 999);
-      filter.createdAt = { $gte: sD, $lte: eD };
+      filter.createdAt = { ...filter.createdAt, $gte: sD, $lte: eD };
     }
 
     // Apply specific ticket sub-filters for navigation
@@ -474,6 +474,14 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate,
     } else if (ticketFilter === 'paid') {
       filter.paid = true;
     }
+  } else if (subSection === 'completed') {
+    // Completed Tickets: completed = true AND pdfUrl is empty (not uploaded yet)
+    filter.completed = true;
+    filter.$or = [{ pdfUrl: '' }, { pdfUrl: null }];
+  } else if (subSection === 'sent') {
+    // Sent Tickets: pdfSent = true AND pdfUrl is not empty (already uploaded)
+    filter.pdfSent = true;
+    filter.pdfUrl = { $ne: '', $ne: null };
   } else if (subSection === 'reports') {
     // Reports: Shows active/non-completed/non-sent records
     filter.completed = false;

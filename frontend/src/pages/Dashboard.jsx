@@ -25,7 +25,7 @@ import { TbCash, TbDatabaseImport } from 'react-icons/tb';
 
 const Dashboard = () => {
   const { username, logout } = useAuth();
-  const [page, setPage] = useState('dashboard'); // 'dashboard' | 'history'
+  const [page, setPage] = useState('dashboard'); // 'dashboard' | 'history' | 'daily'
   const [bookings, setBookings] = useState([]);
   const filter = 'all';
   const [sort, setSort] = useState('asc');
@@ -33,6 +33,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
   const [historyFilter, setHistoryFilter] = useState('all');
+  const [historySubSection, setHistorySubSection] = useState('weekly');
 
   useEffect(() => {
     const handleLocationChange = () => {
@@ -40,8 +41,10 @@ const Dashboard = () => {
       const searchParams = new URLSearchParams(window.location.search);
       const filterParam = searchParams.get('filter');
 
-      if (path === '/history/weekly') {
+      if (path.startsWith('/history/')) {
+        const sub = path.replace('/history/', '');
         setPage('history');
+        setHistorySubSection(sub || 'weekly');
         setHistoryFilter(filterParam || 'all');
       } else if (path === '/daily') {
         setPage('daily');
@@ -55,10 +58,11 @@ const Dashboard = () => {
     return () => window.removeEventListener('popstate', handleLocationChange);
   }, []);
 
-  const navigateTo = (pageName, filterVal = 'all') => {
+  const navigateTo = (pageName, subSection = 'weekly', filterVal = 'all') => {
     if (pageName === 'history') {
-      window.history.pushState({}, '', `/history/weekly?filter=${filterVal}`);
+      window.history.pushState({}, '', `/history/${subSection}?filter=${filterVal}`);
       setPage('history');
+      setHistorySubSection(subSection);
       setHistoryFilter(filterVal);
     } else if (pageName === 'daily') {
       window.history.pushState({}, '', '/daily');
@@ -165,7 +169,7 @@ const Dashboard = () => {
             <button className={`nav-tab ${page === 'dashboard' ? 'active' : ''}`} onClick={() => navigateTo('dashboard')}>
               <LuLayoutDashboard className="icon-hover-scale" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} /> Dashboard
             </button>
-            <button className={`nav-tab ${page === 'history' ? 'active' : ''}`} onClick={() => navigateTo('history', 'all')}>
+            <button className={`nav-tab ${page === 'history' ? 'active' : ''}`} onClick={() => navigateTo('history', 'weekly', 'all')}>
               <LuHistory className="icon-hover-scale" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} /> History
             </button>
             <button className={`nav-tab ${page === 'daily' ? 'active' : ''}`} onClick={() => navigateTo('daily')}>
@@ -186,7 +190,7 @@ const Dashboard = () => {
 
       {page === 'history' ? (
         <main className="main-content">
-          <History initialFilter={historyFilter} key={historyFilter} />
+          <History initialFilter={historyFilter} initialSubSection={historySubSection} key={`${historyFilter}-${historySubSection}`} />
         </main>
       ) : page === 'daily' ? (
         <main className="main-content">
@@ -257,7 +261,7 @@ const Dashboard = () => {
               <div className="icon">
                 <HiOutlineDocumentReport style={{ fontSize: '3rem', color: 'var(--text-muted)' }} />
               </div>
-              <p>No daily data available</p>
+              <p>No reports available.</p>
             </div>
           )}
         </main>
@@ -302,19 +306,15 @@ const Dashboard = () => {
           </div>
 
           <div className="stats-bar">
-            <div className="stat-card" onClick={() => navigateTo('history', 'all')}>
+            <div className="stat-card" onClick={() => navigateTo('history', 'weekly', 'all')}>
               <span className="stat-icon"><FiClipboard className="icon-float" /></span>
               <div className="stat-info"><div className="label">Weekly Bookings</div><div className="value">{stats.weekly?.count || 0}</div></div>
             </div>
-            <div className="stat-card" onClick={() => navigateTo('history', 'paid')}>
+            <div className="stat-card" onClick={() => navigateTo('history', 'weekly', 'paid')}>
               <span className="stat-icon"><FiCheckCircle className="icon-float" style={{ color: 'var(--success)' }} /></span>
               <div className="stat-info"><div className="label">Paid (Weekly)</div><div className="value">{stats.weekly?.paidCount || 0}</div></div>
             </div>
-            <div className="stat-card" onClick={() => navigateTo('history', 'completed')}>
-              <span className="stat-icon"><FiCheckCircle className="icon-float" style={{ color: 'var(--accent)' }} /></span>
-              <div className="stat-info"><div className="label">Completed (Weekly)</div><div className="value">{stats.weekly?.completedCount || 0}</div></div>
-            </div>
-            <div className="stat-card" onClick={() => navigateTo('history', 'sent')}>
+            <div className="stat-card" onClick={() => navigateTo('history', 'sent', 'all')}>
               <span className="stat-icon"><FiSend className="icon-float" style={{ color: 'var(--primary)' }} /></span>
               <div className="stat-info"><div className="label">Sent (Weekly)</div><div className="value">{stats.weekly?.sentCount || 0}</div></div>
             </div>

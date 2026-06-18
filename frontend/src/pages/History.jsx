@@ -33,7 +33,7 @@ const formatDateStr = (dateStr) => {
   return dateStr;
 };
 
-const History = ({ initialFilter = 'all' }) => {
+const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
   const [folders, setFolders] = useState([]);
   const [stats, setStats] = useState({ count: 0, totalAmount: 0, totalProfit: 0, paidCount: 0, unpaidCount: 0, completedCount: 0, sentCount: 0 });
   const [loading, setLoading] = useState(true);
@@ -41,7 +41,7 @@ const History = ({ initialFilter = 'all' }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Subsections inside History
-  const [subSection, setSubSection] = useState('weekly'); // 'weekly' | 'reports' | 'further'
+  const [subSection, setSubSection] = useState(initialSubSection); // 'weekly' | 'completed' | 'sent' | 'reports' | 'further'
   const [dateFilter, setDateFilter] = useState('all'); // 'all' | 'current_week' | 'previous_week' | 'custom'
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -274,7 +274,11 @@ const History = ({ initialFilter = 'all' }) => {
     const weeks = {};
 
     foldersList.forEach((folder) => {
-      const [year, month, day] = folder._id.split('-').map(Number);
+      if (!folder || !folder._id || typeof folder._id !== 'string') return;
+      const parts = folder._id.split('-');
+      if (parts.length !== 3) return;
+      const [year, month, day] = parts.map(Number);
+      if (isNaN(year) || isNaN(month) || isNaN(day)) return;
       const date = new Date(year, month - 1, day);
 
       const dayOfWeek = date.getDay(); // 0 = Sunday, ..., 6 = Saturday
@@ -318,7 +322,7 @@ const History = ({ initialFilter = 'all' }) => {
   const weekGroups = groupFoldersByWeek(folders);
 
   return (
-    <div>
+    <div className={`theme-${subSection}`}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
         <div>
           <h2 style={{ fontSize: '1.2rem', color: 'var(--primary)', margin: 0, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -347,13 +351,19 @@ const History = ({ initialFilter = 'all' }) => {
 
       {/* History Sub-navigation */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', borderBottom: '2px solid var(--border)', paddingBottom: '0.6rem', flexWrap: 'wrap' }}>
-        <button className={`nav-tab ${subSection === 'weekly' ? 'active' : ''}`} onClick={() => { setSubSection('weekly'); setDateFilter('all'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+        <button className={`nav-tab ${subSection === 'weekly' ? 'active' : ''}`} onClick={() => { setSubSection('weekly'); setDateFilter('all'); window.history.pushState({}, '', '/history/weekly'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
           <FiCalendar /> Weekly History
         </button>
-        <button className={`nav-tab ${subSection === 'reports' ? 'active' : ''}`} onClick={() => { setSubSection('reports'); setDateFilter('monthly'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+        <button className={`nav-tab ${subSection === 'completed' ? 'active' : ''}`} onClick={() => { setSubSection('completed'); setDateFilter('all'); window.history.pushState({}, '', '/history/completed'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+          <FiCheckCircle /> Completed Tickets
+        </button>
+        <button className={`nav-tab ${subSection === 'sent' ? 'active' : ''}`} onClick={() => { setSubSection('sent'); setDateFilter('all'); window.history.pushState({}, '', '/history/sent'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+          <FiSend /> Sent Tickets
+        </button>
+        <button className={`nav-tab ${subSection === 'reports' ? 'active' : ''}`} onClick={() => { setSubSection('reports'); setDateFilter('monthly'); window.history.pushState({}, '', '/history/reports'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
           <HiOutlineDocumentReport /> Reports
         </button>
-        <button className={`nav-tab ${subSection === 'further' ? 'active' : ''}`} onClick={() => { setSubSection('further'); setDateFilter('further_date'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+        <button className={`nav-tab ${subSection === 'further' ? 'active' : ''}`} onClick={() => { setSubSection('further'); setDateFilter('further_date'); window.history.pushState({}, '', '/history/further'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
           <FiFolderPlus /> Further Date Bookings
         </button>
       </div>
@@ -437,6 +447,56 @@ const History = ({ initialFilter = 'all' }) => {
                 <div className="stat-info">
                   <div className="label">Tickets Sent</div>
                   <div className="value">{stats.sentCount || 0}</div>
+                </div>
+              </div>
+            </div>
+          )}
+          {subSection === 'completed' && (
+            <div className="stats-bar" style={{ marginBottom: '1.5rem' }}>
+              <div className="stat-card">
+                <span className="stat-icon"><FiClipboard className="icon-float" /></span>
+                <div className="stat-info">
+                  <div className="label">Completed Tickets</div>
+                  <div className="value">{stats.count || 0}</div>
+                </div>
+              </div>
+              <div className="stat-card money">
+                <span className="stat-icon"><FiDollarSign className="icon-float" style={{ color: 'var(--accent)' }} /></span>
+                <div className="stat-info">
+                  <div className="label">Total Amount</div>
+                  <div className="value">₹{stats.totalAmount || 0}</div>
+                </div>
+              </div>
+              <div className="stat-card">
+                <span className="stat-icon"><FiCheckCircle className="icon-float" style={{ color: 'var(--success)' }} /></span>
+                <div className="stat-info">
+                  <div className="label">Paid (Completed)</div>
+                  <div className="value">{stats.paidCount || 0}</div>
+                </div>
+              </div>
+            </div>
+          )}
+          {subSection === 'sent' && (
+            <div className="stats-bar" style={{ marginBottom: '1.5rem' }}>
+              <div className="stat-card">
+                <span className="stat-icon"><FiClipboard className="icon-float" /></span>
+                <div className="stat-info">
+                  <div className="label">Sent Tickets</div>
+                  <div className="value">{stats.count || 0}</div>
+                </div>
+              </div>
+              <div className="stat-card money">
+                <span className="stat-icon"><FiDollarSign className="icon-float" style={{ color: 'var(--accent)' }} /></span>
+                <div className="stat-info">
+                  <div className="label">Total Amount</div>
+                  <div className="value">₹{stats.totalAmount || 0}</div>
+                </div>
+              </div>
+              <div className="stat-card">
+                <span className="stat-icon"><FiCheckCircle className="icon-float" style={{ color: 'var(--success)' }} /></span>
+                <div className="stat-info">
+                  <div className="label">Paid (Sent)</div>
+                  <div className="value">{stats.paidCount || 0}</div>
                 </div>
               </div>
             </div>
@@ -557,21 +617,16 @@ const History = ({ initialFilter = 'all' }) => {
                 <div className="icon">
                   <FiFolderMinus className="icon-float" style={{ fontSize: '3rem', color: 'var(--text-muted)' }} />
                 </div>
-                <p>No archived tickets found for this period.</p>
+                <p>{subSection === 'reports' ? 'No reports available.' : 'No archived tickets found for this period.'}</p>
               </div>
             </div>
           ) : (
             <div>
               {weekGroups.map((week) => (
                 <div key={week.weekKey}>
-                  {/* Shadow Archive Week Header */}
-                  <div className="shadow-archive-header">
-                    <div className="shadow-archive-title">
-                      WEEK {String(week.weekNumber).padStart(2, '0')}
-                    </div>
-                    <div className="shadow-archive-dates">
-                      {formatWeekDateRange(week.start, week.end)}
-                    </div>
+                  {/* Sleek left-bordered week side heading */}
+                  <div className="week-side-heading">
+                    Week ({formatWeekDateRange(week.start, week.end)})
                   </div>
 
                   {/* Folders List within Week */}
@@ -728,15 +783,35 @@ const History = ({ initialFilter = 'all' }) => {
                 {/* Section Specific Action buttons */}
                 {subSection === 'weekly' && (
                   <>
-                    {!selectedTicket.pdfUrl ? (
+                    {!selectedTicket.pdfUrl && (
                       <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
                         Upload PDF
                       </button>
-                    ) : (
-                      <button className="btn btn-warning btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
-                        Replace PDF
+                    )}
+                    <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={handleTicketDelete}>
+                      Delete Ticket
+                    </button>
+                  </>
+                )}
+
+                {subSection === 'completed' && (
+                  <>
+                    {!selectedTicket.pdfUrl && (
+                      <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
+                        Upload PDF
                       </button>
                     )}
+                    <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={handleTicketDelete}>
+                      Delete Ticket
+                    </button>
+                  </>
+                )}
+
+                {subSection === 'sent' && (
+                  <>
+                    <button className="btn btn-warning btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
+                      Replace PDF
+                    </button>
                     <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={handleTicketDelete}>
                       Delete Ticket
                     </button>
