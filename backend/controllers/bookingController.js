@@ -9,6 +9,16 @@ const uploadDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const getAll = async (req, res) => {
+  // Auto correction: If a booking has pdfSent: true but pdfUrl is empty/null/missing, set pdfSent: false
+  await Booking.updateMany(
+    {
+      createdBy: req.admin.id,
+      pdfSent: true,
+      $or: [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }]
+    },
+    { $set: { pdfSent: false } }
+  );
+
   const { status, sort, weekly, filterType, startDate, endDate } = req.query;
   let filter = { createdBy: req.admin.id };
 
@@ -293,6 +303,16 @@ const getTotalCount = async (req, res) => {
 
 const getStats = async (req, res) => {
   try {
+    // Auto correction: If a booking has pdfSent: true but pdfUrl is empty/null/missing, set pdfSent: false
+    await Booking.updateMany(
+      {
+        createdBy: req.admin.id,
+        pdfSent: true,
+        $or: [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }]
+      },
+      { $set: { pdfSent: false } }
+    );
+
     const { getWeeklyStats } = require('../services/weeklyStatsService');
     const weeklyStats = await getWeeklyStats(req.admin.id);
     const allBookings = await Booking.find({ createdBy: req.admin.id }).populate('createdBy', 'username');
@@ -319,7 +339,7 @@ const getStats = async (req, res) => {
       totalAmount += amt;
       totalProfit += prf;
       if (b.paid) paidCount++;
-      if (b.pdfSent) sentCount++;
+      if (b.pdfUrl && b.pdfUrl.trim() !== '') sentCount++;
       
       if (b.paymentMethod === 'phonepe') phonepeAmount += amt;
       if (b.paymentMethod === 'cash') cashAmount += amt;
@@ -346,7 +366,7 @@ const getStats = async (req, res) => {
         todayStats.totalAmount += amt;
         todayStats.totalProfit += prf;
         if (b.paid) todayStats.paidCount++;
-        if (b.pdfSent) todayStats.sentCount++;
+        if (b.pdfUrl && b.pdfUrl.trim() !== '') todayStats.sentCount++;
         if (b.paymentMethod === 'phonepe') todayStats.phonepeAmount += amt;
         if (b.paymentMethod === 'cash') todayStats.cashAmount += amt;
       }
@@ -438,6 +458,20 @@ const applySearchQuery = (baseFilter, searchQuery) => {
   return result;
 };
 
+const getISTTodayEnd = () => {
+  const kolkataTime = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date());
+
+  const [month, day, year] = kolkataTime.split('/');
+  const end = new Date(`${year}-${month}-${day}T23:59:59.999Z`);
+  end.setMinutes(end.getMinutes() - 330);
+  return end;
+};
+
 const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate, ticketFilter) => {
   const mongoose = require('mongoose');
   let filter = { 
@@ -451,22 +485,17 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate,
 
   if (subSection === 'weekly') {
     if (ticketFilter === 'completed_paid') {
-      // Completed & Paid: completed = true AND paid = true AND pdfUrl is empty/null/missing AND pdfSent is not true
+      // Completed & Paid: completed = true AND paid = true AND pdfUrl is empty/null/missing
       filter.completed = true;
       filter.paid = true;
-      filter.pdfSent = { $ne: true };
       filter.$or = [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }];
     } else if (ticketFilter === 'sent') {
-      // Tickets Sent: pdfUrl is not empty/null OR pdfSent is true
-      filter.$or = [
-        { pdfSent: true },
-        { pdfUrl: { $nin: ['', null], $exists: true } }
-      ];
+      // Tickets Sent: pdfUrl is not empty/null
+      filter.pdfUrl = { $nin: ['', null], $exists: true };
     } else {
-      // All Tickets (Weekly History): Shows completed, sent, and pdf-attached tickets
+      // All Tickets (Weekly History): Shows completed & paid or pdf-attached tickets
       filter.$or = [
-        { completed: true },
-        { pdfSent: true },
+        { completed: true, paid: true },
         { pdfUrl: { $nin: ['', null], $exists: true } }
       ];
     }
@@ -493,17 +522,19 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate,
     filter.$or = [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }];
   } else if (subSection === 'sent') {
     // Sent Tickets (Legacy/Alias)
-    filter.pdfSent = true;
     filter.pdfUrl = { $nin: ['', null], $exists: true };
   } else if (subSection === 'reports') {
-    // Reports: Shows active/non-completed/non-sent records
+    // Reports: Shows active/non-completed/non-sent records where bookingDate <= today end IST
     filter.completed = false;
     filter.pdfSent = false;
+    filter.$or = [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }];
+    filter.bookingDate = { $lte: getISTTodayEnd() };
   } else if (subSection === 'further') {
-    // Further Date Bookings: Shows future bookings only (non-completed, non-sent)
+    // Further Date Bookings: Shows future bookings only (non-completed, non-sent) where bookingDate > today end IST
     filter.completed = false;
     filter.pdfSent = false;
-    filter.visitDate = { $gt: new Date() };
+    filter.$or = [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }];
+    filter.bookingDate = { $gt: getISTTodayEnd() };
   }
 
   return filter;
@@ -511,6 +542,16 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate,
 
 const getHistoryFolders = async (req, res) => {
   try {
+    // Auto correction: If a booking has pdfSent: true but pdfUrl is empty/null/missing, set pdfSent: false
+    await Booking.updateMany(
+      {
+        createdBy: req.admin.id,
+        pdfSent: true,
+        $or: [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }]
+      },
+      { $set: { pdfSent: false } }
+    );
+
     const { subSection, dateFilter, startDate, endDate, searchQuery, sort, ticketFilter } = req.query;
     let baseFilter = buildHistoryFilter(req.admin.id, subSection, dateFilter, startDate, endDate, ticketFilter);
     baseFilter = applySearchQuery(baseFilter, searchQuery);
@@ -548,7 +589,7 @@ const getHistoryFolders = async (req, res) => {
             $sum: { $cond: ["$completed", 1, 0] }
           },
           sentCount: {
-            $sum: { $cond: ["$pdfSent", 1, 0] }
+            $sum: { $cond: [{ $and: [{ $ne: ["$pdfUrl", ""] }, { $ne: ["$pdfUrl", null] }] }, 1, 0] }
           }
         }
       }
@@ -583,35 +624,30 @@ const getHistoryFolders = async (req, res) => {
         dateQuery.createdAt = { $gte: sD, $lte: eD };
       }
 
-      // Total Records: completed = true OR pdfSent = true OR pdfUrl not empty
+      // Total Records: completed & paid = true OR pdfUrl not empty
       const weeklyTotalCount = await Booking.countDocuments({
         createdBy: adminObjId,
         ...dateQuery,
         $or: [
-          { completed: true },
-          { pdfSent: true },
+          { completed: true, paid: true },
           { pdfUrl: { $nin: ['', null], $exists: true } }
         ]
       });
 
-      // Completed & Paid: completed = true AND paid = true AND pdfUrl is empty/null/missing AND pdfSent is not true
+      // Completed & Paid: completed = true AND paid = true AND pdfUrl is empty/null/missing
       const weeklyCompletedPaidCount = await Booking.countDocuments({
         createdBy: adminObjId,
         completed: true,
         paid: true,
-        pdfSent: { $ne: true },
         ...dateQuery,
         $or: [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }]
       });
 
-      // Tickets Sent: pdfUrl not empty OR pdfSent = true
+      // Tickets Sent: pdfUrl not empty
       const weeklySentCount = await Booking.countDocuments({
         createdBy: adminObjId,
         ...dateQuery,
-        $or: [
-          { pdfSent: true },
-          { pdfUrl: { $nin: ['', null], $exists: true } }
-        ]
+        pdfUrl: { $nin: ['', null], $exists: true }
       });
 
       stats.weeklyTotalCount = weeklyTotalCount;
@@ -634,6 +670,16 @@ const getHistoryFolders = async (req, res) => {
 
 const getHistoryTickets = async (req, res) => {
   try {
+    // Auto correction: If a booking has pdfSent: true but pdfUrl is empty/null/missing, set pdfSent: false
+    await Booking.updateMany(
+      {
+        createdBy: req.admin.id,
+        pdfSent: true,
+        $or: [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }]
+      },
+      { $set: { pdfSent: false } }
+    );
+
     const { subSection, dateFilter, startDate, endDate, searchQuery, bookingDate, sort, ticketFilter } = req.query;
     let baseFilter = buildHistoryFilter(req.admin.id, subSection, dateFilter, startDate, endDate, ticketFilter);
     
@@ -694,5 +740,7 @@ module.exports = {
   claimOrphans,
   getHistoryFolders,
   getHistoryTickets,
-  getAutoDeletedLogs
+  getAutoDeletedLogs,
+  buildHistoryFilter,
+  getISTTodayEnd
 };
