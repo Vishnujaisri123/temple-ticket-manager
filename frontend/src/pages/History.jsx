@@ -366,30 +366,6 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
         </button>
       </div>
 
-      {/* Weekly History filter chips with Solo Leveling aesthetics */}
-      {subSection === 'weekly' && (
-        <div className="history-filter-chips">
-          <button 
-            className={`filter-chip ${ticketFilter === 'all' ? 'active' : ''}`} 
-            onClick={() => { setTicketFilter('all'); window.history.pushState({}, '', '/history/weekly'); }}
-          >
-            All Tickets
-          </button>
-          <button 
-            className={`filter-chip ${ticketFilter === 'completed_paid' ? 'active' : ''}`} 
-            onClick={() => { setTicketFilter('completed_paid'); window.history.pushState({}, '', '/history/completed'); }}
-          >
-            Completed & Paid <span className="chip-badge">{stats.weeklyCompletedPaidCount || 0}</span>
-          </button>
-          <button 
-            className={`filter-chip ${ticketFilter === 'sent' ? 'active' : ''}`} 
-            onClick={() => { setTicketFilter('sent'); window.history.pushState({}, '', '/history/sent'); }}
-          >
-            Tickets Sent <span className="chip-badge">{stats.weeklySentCount || 0}</span>
-          </button>
-        </div>
-      )}
-
       {subSection === 'reports' && (
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem', background: 'var(--surface)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Reports Scope:</span>
@@ -404,30 +380,39 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
         </div>
       )}
 
-      {/* Stats Summary for Each Section */}
+      {/* Stats Summary for Each Section (Top Summary Cards serve as Clickable Filters in Weekly History) */}
       {stats && (
         <>
           {subSection === 'weekly' && (
             <div className="stats-bar" style={{ marginBottom: '1.5rem' }}>
-              <div className="stat-card">
+              <div 
+                className={`stat-card ${ticketFilter === 'all' ? 'active' : ''}`} 
+                onClick={() => { setTicketFilter('all'); window.history.pushState({}, '', '/history/weekly'); }}
+              >
                 <span className="stat-icon"><FiClipboard className="icon-float" /></span>
                 <div className="stat-info">
                   <div className="label">Total Records</div>
-                  <div className="value">{stats.count || 0}</div>
+                  <div className="value">{stats.weeklyTotalCount || 0}</div>
                 </div>
               </div>
-              <div className="stat-card">
+              <div 
+                className={`stat-card ${ticketFilter === 'completed_paid' ? 'active' : ''}`} 
+                onClick={() => { setTicketFilter('completed_paid'); window.history.pushState({}, '', '/history/completed'); }}
+              >
                 <span className="stat-icon"><FiCheckCircle className="icon-float" style={{ color: 'var(--success)' }} /></span>
                 <div className="stat-info">
                   <div className="label">Completed & Paid</div>
-                  <div className="value">{stats.completedCount || 0}</div>
+                  <div className="value">{stats.weeklyCompletedPaidCount || 0}</div>
                 </div>
               </div>
-              <div className="stat-card">
+              <div 
+                className={`stat-card ${ticketFilter === 'sent' ? 'active' : ''}`} 
+                onClick={() => { setTicketFilter('sent'); window.history.pushState({}, '', '/history/sent'); }}
+              >
                 <span className="stat-icon"><FiSend className="icon-float" style={{ color: 'var(--primary)' }} /></span>
                 <div className="stat-info">
                   <div className="label">Tickets Sent</div>
-                  <div className="value">{stats.sentCount || 0}</div>
+                  <div className="value">{stats.weeklySentCount || 0}</div>
                 </div>
               </div>
             </div>

@@ -560,22 +560,28 @@ const getHistoryFolders = async (req, res) => {
       const mongoose = require('mongoose');
       const adminObjId = new mongoose.Types.ObjectId(req.admin.id);
 
-      // Completed & Paid: completed = true, paid = true, pdfUrl empty
-      stats.weeklyCompletedPaidCount = await Booking.countDocuments({
+      // Total Records: completed = true OR pdfSent = true OR pdfUrl not empty
+      const weeklyTotalCount = await Booking.countDocuments({
         createdBy: adminObjId,
-        completed: true,
-        paid: true,
-        $or: [{ pdfUrl: '' }, { pdfUrl: null }]
+        $or: [
+          { completed: true },
+          { pdfSent: true },
+          { pdfUrl: { $ne: '', $ne: null } }
+        ]
       });
 
       // Tickets Sent: pdfUrl not empty OR pdfSent = true
-      stats.weeklySentCount = await Booking.countDocuments({
+      const weeklySentCount = await Booking.countDocuments({
         createdBy: adminObjId,
         $or: [
           { pdfSent: true },
           { pdfUrl: { $ne: '', $ne: null } }
         ]
       });
+
+      stats.weeklyTotalCount = weeklyTotalCount;
+      stats.weeklySentCount = weeklySentCount;
+      stats.weeklyCompletedPaidCount = weeklyTotalCount - weeklySentCount;
     }
 
     res.json({ folders, stats });
