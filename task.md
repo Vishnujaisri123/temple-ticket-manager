@@ -1,0 +1,2 @@
+- [x] Update backend `bookingController.js` (replace duplicate keys with $nin filter)
+- [x] Verify build compiles successfully

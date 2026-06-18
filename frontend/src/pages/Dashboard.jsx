@@ -310,7 +310,7 @@ const Dashboard = () => {
               <span className="stat-icon"><FiClipboard className="icon-float" /></span>
               <div className="stat-info"><div className="label">Weekly Bookings</div><div className="value">{stats.weekly?.count || 0}</div></div>
             </div>
-            <div className="stat-card" onClick={() => navigateTo('history', 'weekly', 'paid')}>
+            <div className="stat-card" onClick={() => navigateTo('history', 'completed', 'all')}>
               <span className="stat-icon"><FiCheckCircle className="icon-float" style={{ color: 'var(--success)' }} /></span>
               <div className="stat-info"><div className="label">Paid (Weekly)</div><div className="value">{stats.weekly?.paidCount || 0}</div></div>
             </div>

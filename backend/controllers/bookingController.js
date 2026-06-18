@@ -451,22 +451,23 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate,
 
   if (subSection === 'weekly') {
     if (ticketFilter === 'completed_paid') {
-      // Completed & Paid: completed = true AND paid = true AND pdfUrl is empty/null/missing
+      // Completed & Paid: completed = true AND paid = true AND pdfUrl is empty/null/missing AND pdfSent is not true
       filter.completed = true;
       filter.paid = true;
+      filter.pdfSent = { $ne: true };
       filter.$or = [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }];
     } else if (ticketFilter === 'sent') {
       // Tickets Sent: pdfUrl is not empty/null OR pdfSent is true
       filter.$or = [
         { pdfSent: true },
-        { pdfUrl: { $nin: ['', null] } }
+        { pdfUrl: { $nin: ['', null], $exists: true } }
       ];
     } else {
       // All Tickets (Weekly History): Shows completed, sent, and pdf-attached tickets
       filter.$or = [
         { completed: true },
         { pdfSent: true },
-        { pdfUrl: { $nin: ['', null] } }
+        { pdfUrl: { $nin: ['', null], $exists: true } }
       ];
     }
 
@@ -493,7 +494,7 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate,
   } else if (subSection === 'sent') {
     // Sent Tickets (Legacy/Alias)
     filter.pdfSent = true;
-    filter.pdfUrl = { $nin: ['', null] };
+    filter.pdfUrl = { $nin: ['', null], $exists: true };
   } else if (subSection === 'reports') {
     // Reports: Shows active/non-completed/non-sent records
     filter.completed = false;
@@ -560,55 +561,56 @@ const getHistoryFolders = async (req, res) => {
       const mongoose = require('mongoose');
       const adminObjId = new mongoose.Types.ObjectId(req.admin.id);
 
+      // Define date query for weekly count alignment
+      let dateQuery = {};
       const { getCurrentWeekStart, getCurrentWeekEnd } = require('../services/weeklyStatsService');
       const startOfWeek = getCurrentWeekStart();
       const endOfWeek = getCurrentWeekEnd(startOfWeek);
 
-      let weeklyBaseFilter = {
-        createdBy: adminObjId,
-        createdAt: { $exists: true, $ne: null }
-      };
-
       if (dateFilter === 'current_week') {
-        weeklyBaseFilter.createdAt = { ...weeklyBaseFilter.createdAt, $gte: startOfWeek, $lte: endOfWeek };
+        dateQuery.createdAt = { $gte: startOfWeek, $lte: endOfWeek };
       } else if (dateFilter === 'previous_week') {
         const prevStartOfWeek = new Date(startOfWeek);
         prevStartOfWeek.setDate(startOfWeek.getDate() - 7);
         const prevEndOfWeek = new Date(endOfWeek);
         prevEndOfWeek.setDate(endOfWeek.getDate() - 7);
-        weeklyBaseFilter.createdAt = { ...weeklyBaseFilter.createdAt, $gte: prevStartOfWeek, $lte: prevEndOfWeek };
+        dateQuery.createdAt = { $gte: prevStartOfWeek, $lte: prevEndOfWeek };
       } else if (dateFilter === 'custom' && startDate && endDate) {
         const sD = new Date(startDate);
         sD.setHours(0, 0, 0, 0);
         const eD = new Date(endDate);
         eD.setHours(23, 59, 59, 999);
-        weeklyBaseFilter.createdAt = { ...weeklyBaseFilter.createdAt, $gte: sD, $lte: eD };
+        dateQuery.createdAt = { $gte: sD, $lte: eD };
       }
 
       // Total Records: completed = true OR pdfSent = true OR pdfUrl not empty
       const weeklyTotalCount = await Booking.countDocuments({
-        ...weeklyBaseFilter,
+        createdBy: adminObjId,
+        ...dateQuery,
         $or: [
           { completed: true },
           { pdfSent: true },
-          { pdfUrl: { $nin: ['', null] } }
+          { pdfUrl: { $nin: ['', null], $exists: true } }
         ]
       });
 
-      // Completed & Paid: completed = true AND paid = true AND pdfUrl is empty/null/missing
+      // Completed & Paid: completed = true AND paid = true AND pdfUrl is empty/null/missing AND pdfSent is not true
       const weeklyCompletedPaidCount = await Booking.countDocuments({
-        ...weeklyBaseFilter,
+        createdBy: adminObjId,
         completed: true,
         paid: true,
+        pdfSent: { $ne: true },
+        ...dateQuery,
         $or: [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }]
       });
 
       // Tickets Sent: pdfUrl not empty OR pdfSent = true
       const weeklySentCount = await Booking.countDocuments({
-        ...weeklyBaseFilter,
+        createdBy: adminObjId,
+        ...dateQuery,
         $or: [
           { pdfSent: true },
-          { pdfUrl: { $nin: ['', null] } }
+          { pdfUrl: { $nin: ['', null], $exists: true } }
         ]
       });
 
