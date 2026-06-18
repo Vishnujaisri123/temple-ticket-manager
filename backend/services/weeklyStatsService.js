@@ -47,6 +47,7 @@ const getWeeklyStats = async (adminId) => {
     cashAmount: 0,
     paidCount: 0,
     sentCount: 0,
+    completedCount: 0,
     count: bookings.length
   };
 
@@ -58,6 +59,7 @@ const getWeeklyStats = async (adminId) => {
     stats.totalProfit += prf;
     if (b.paid) stats.paidCount++;
     if (b.pdfSent) stats.sentCount++;
+    if (b.completed) stats.completedCount++;
 
     if (b.paymentMethod === 'phonepe') stats.phonepeAmount += amt;
     if (b.paymentMethod === 'cash') stats.cashAmount += amt;

@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useCallback } from 'react';
-import { getHistoryFolders, getHistoryTickets } from '../services/api';
+import { getHistoryFolders, getHistoryTickets, updateBooking, deleteBooking, uploadPdf } from '../services/api';
 import { toast } from '../components/Toast';
 import AutoPdfDropzone from '../components/AutoPdfDropzone';
 import {
@@ -21,7 +21,7 @@ import {
   FiClipboard,
 } from 'react-icons/fi';
 import { LuHistory } from 'react-icons/lu';
-import { HiOutlineDocumentReport, HiTrendingUp } from 'react-icons/hi';
+import { HiOutlineDocumentReport } from 'react-icons/hi';
 
 const formatDateStr = (dateStr) => {
   if (!dateStr) return '—';
@@ -33,7 +33,7 @@ const formatDateStr = (dateStr) => {
   return dateStr;
 };
 
-const History = () => {
+const History = ({ initialFilter = 'all' }) => {
   const [folders, setFolders] = useState([]);
   const [stats, setStats] = useState({ count: 0, totalAmount: 0, totalProfit: 0, paidCount: 0, unpaidCount: 0, completedCount: 0, sentCount: 0 });
   const [loading, setLoading] = useState(true);
@@ -45,6 +45,7 @@ const History = () => {
   const [dateFilter, setDateFilter] = useState('all'); // 'all' | 'current_week' | 'previous_week' | 'custom'
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+  const [ticketFilter, setTicketFilter] = useState(initialFilter);
 
   // Folder interaction and lazy-loaded tickets
   const [expandedFolders, setExpandedFolders] = useState({});
@@ -53,6 +54,10 @@ const History = () => {
 
   // Ticket Detail Modal
   const [selectedTicket, setSelectedTicket] = useState(null);
+
+  // Direct search results
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const fetchFolders = useCallback(async () => {
     setLoading(true);
@@ -64,6 +69,7 @@ const History = () => {
         subSection,
         sort,
         searchQuery,
+        ticketFilter,
       };
       if (subSection === 'weekly') {
         params.dateFilter = dateFilter;
@@ -85,11 +91,46 @@ const History = () => {
     } finally {
       setLoading(false);
     }
-  }, [subSection, dateFilter, customStart, customEnd, searchQuery, sort]);
+  }, [subSection, dateFilter, customStart, customEnd, searchQuery, sort, ticketFilter]);
 
   useEffect(() => {
     fetchFolders();
   }, [fetchFolders]);
+
+  // Direct tickets search effect (debounce)
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const params = {
+          subSection,
+          sort,
+          searchQuery,
+          ticketFilter,
+        };
+        if (subSection === 'weekly') {
+          params.dateFilter = dateFilter;
+          if (dateFilter === 'custom') {
+            params.startDate = customStart;
+            params.endDate = customEnd;
+          }
+        }
+        const { data } = await getHistoryTickets(params);
+        setSearchResults(data || []);
+      } catch (err) {
+        toast(err.response?.data?.message || 'Failed to search tickets', 'error');
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchQuery, subSection, dateFilter, customStart, customEnd, ticketFilter, sort]);
 
   const toggleFolder = async (dateStr) => {
     const isExpanded = !!expandedFolders[dateStr];
@@ -104,6 +145,7 @@ const History = () => {
           sort,
           searchQuery,
           bookingDate: dateStr,
+          ticketFilter,
         };
         if (subSection === 'weekly') {
           params.dateFilter = dateFilter;
@@ -123,9 +165,157 @@ const History = () => {
   };
 
   const handleAutoUploaded = () => {
-    // Refresh the folder list when a PDF is matched in the background
     fetchFolders();
   };
+
+  // ── Ticket Detail Actions ──
+  const handlePdfUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('id', selectedTicket._id);
+    formData.append('pdf', file);
+
+    const toastId = toast.loading ? toast.loading('Uploading PDF...') : null;
+    try {
+      const { data } = await uploadPdf(formData);
+      // Construct updated ticket object
+      const updatedTicket = {
+        ...selectedTicket,
+        pdfUrl: data.booking.pdfUrl || data.booking.localPdfUrl,
+        localPdfUrl: data.booking.localPdfUrl,
+        pdfSent: data.booking.pdfSent,
+      };
+      setSelectedTicket(updatedTicket);
+
+      // Update cached lists
+      const folderId = selectedTicket.createdAt?.split('T')[0];
+      if (folderId) {
+        setFolderTickets((prev) => ({
+          ...prev,
+          [folderId]: prev[folderId]?.map((t) => (t._id === selectedTicket._id ? updatedTicket : t)) || [],
+        }));
+      }
+      setSearchResults((prev) => prev.map((t) => (t._id === selectedTicket._id ? updatedTicket : t)));
+
+      if (toastId) toast.dismiss(toastId);
+      toast.success('PDF uploaded successfully!');
+      fetchFolders();
+    } catch (err) {
+      if (toastId) toast.dismiss(toastId);
+      toast.error(err.response?.data?.message || 'Failed to upload PDF');
+    }
+  };
+
+  const handleTicketDelete = async () => {
+    if (!window.confirm('Are you sure you want to permanently delete this ticket? This action cannot be undone.')) return;
+
+    try {
+      await deleteBooking(selectedTicket._id);
+      toast.success('Ticket deleted successfully!');
+
+      // Update cached lists
+      const folderId = selectedTicket.createdAt?.split('T')[0];
+      if (folderId) {
+        setFolderTickets((prev) => ({
+          ...prev,
+          [folderId]: prev[folderId]?.filter((t) => t._id !== selectedTicket._id) || [],
+        }));
+      }
+      setSearchResults((prev) => prev.filter((t) => t._id !== selectedTicket._id));
+
+      setSelectedTicket(null);
+      fetchFolders();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete ticket');
+    }
+  };
+
+  const handleStatusToggle = async (field, currentValue) => {
+    try {
+      const { data } = await updateBooking(selectedTicket._id, { [field]: !currentValue });
+      setSelectedTicket(data);
+
+      // Update cached lists
+      const folderId = data.createdAt?.split('T')[0];
+      if (folderId) {
+        setFolderTickets((prev) => ({
+          ...prev,
+          [folderId]: prev[folderId]?.map((t) => (t._id === data._id ? data : t)) || [],
+        }));
+      }
+      setSearchResults((prev) => prev.map((t) => (t._id === data._id ? data : t)));
+
+      toast.success('Status updated successfully!');
+      fetchFolders();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update status');
+    }
+  };
+
+  // ── Week-based grouping math ──
+  const getWeekNumber = (d) => {
+    const date = new Date(d.getTime());
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+    const week1 = new Date(date.getFullYear(), 0, 4);
+    return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+  };
+
+  const formatWeekDateRange = (startDate, endDate) => {
+    const options = { day: '2-digit', month: 'short', year: 'numeric' };
+    const startStr = startDate.toLocaleDateString('en-GB', options).replace(/,/g, '');
+    const endStr = endDate.toLocaleDateString('en-GB', options).replace(/,/g, '');
+    return `${startStr} - ${endStr}`;
+  };
+
+  const groupFoldersByWeek = (foldersList) => {
+    const weeks = {};
+
+    foldersList.forEach((folder) => {
+      const [year, month, day] = folder._id.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+
+      const dayOfWeek = date.getDay(); // 0 = Sunday, ..., 6 = Saturday
+      const diff = (dayOfWeek + 1) % 7; // Saturday offset
+      const start = new Date(date);
+      start.setDate(date.getDate() - diff);
+      start.setHours(0, 0, 0, 0);
+
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+
+      const weekKey = start.toISOString().split('T')[0];
+
+      if (!weeks[weekKey]) {
+        weeks[weekKey] = {
+          start: new Date(start),
+          end: new Date(end),
+          folders: [],
+        };
+      }
+      weeks[weekKey].folders.push(folder);
+    });
+
+    const sortedWeekKeys = Object.keys(weeks).sort((a, b) => {
+      return sort === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
+    });
+
+    return sortedWeekKeys.map((key) => {
+      const weekNum = getWeekNumber(weeks[key].start);
+      return {
+        weekKey: key,
+        weekNumber: weekNum,
+        start: weeks[key].start,
+        end: weeks[key].end,
+        folders: weeks[key].folders,
+      };
+    });
+  };
+
+  const weekGroups = groupFoldersByWeek(folders);
 
   return (
     <div>
@@ -141,7 +331,7 @@ const History = () => {
             <FiSearch style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.9rem' }} />
             <input 
               type="text" 
-              placeholder="Search by name or phone..." 
+              placeholder="Search by name, phone, gothram, date..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{ width: '100%', padding: '0.5rem 1rem 0.5rem 2.2rem', borderRadius: '8px', border: '1.5px solid var(--border)', fontSize: '0.875rem' }}
@@ -204,6 +394,22 @@ const History = () => {
         <div className="reminder-banner" style={{ borderLeft: '4px solid var(--primary)', marginBottom: '1rem', background: 'rgba(59, 130, 246, 0.08)' }}>
           <span className="icon"><FiActivity className="icon-glow" style={{ color: 'var(--accent)' }} /></span>
           <span style={{ color: 'var(--text)', fontSize: '0.85rem' }}><strong>Future Bookings:</strong> Displaying all future visit date bookings. Done/Sent bookings are excluded.</span>
+        </div>
+      )}
+
+      {/* Navigation Filter Indicator (if filter is active in Weekly History) */}
+      {subSection === 'weekly' && ticketFilter !== 'all' && (
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '1rem', background: 'rgba(59, 130, 246, 0.12)', padding: '0.5rem 1rem', borderRadius: '6px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+          <span style={{ fontSize: '0.82rem', color: 'var(--accent)', fontWeight: 600, textTransform: 'uppercase' }}>
+            Shortcut Active: {ticketFilter === 'sent' ? 'Sent' : ticketFilter === 'completed' ? 'Completed' : 'Paid'} Tickets Only
+          </span>
+          <button 
+            className="btn btn-sm btn-outline" 
+            style={{ marginLeft: 'auto', padding: '0.2rem 0.5rem', fontSize: '0.75rem' }} 
+            onClick={() => setTicketFilter('all')}
+          >
+            Clear Filter
+          </button>
         </div>
       )}
 
@@ -295,79 +501,137 @@ const History = () => {
         </>
       )}
 
-      {/* Auto PDF Dropzone (Only relevant for matching/uploading to completed & paid) */}
       {subSection === 'weekly' && (
         <AutoPdfDropzone onUploadSuccess={handleAutoUploaded} />
       )}
 
-      {/* Folders List */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-          <FiActivity className="icon-spin" style={{ fontSize: '2rem', marginBottom: '0.5rem' }} />
-          <div>Loading Archive Folders...</div>
-        </div>
-      ) : folders.length === 0 ? (
-        <div className="table-wrapper">
-          <div className="empty-state">
-            <div className="icon">
-              <FiFolderMinus className="icon-float" style={{ fontSize: '3rem', color: 'var(--text-muted)' }} />
+      {/* Main Content Area: Search Mode vs. Week Group Mode */}
+      {searchQuery.trim() !== '' ? (
+        // ── Direct Search Result View ──
+        <div style={{ marginTop: '1rem' }}>
+          <h3 style={{ fontSize: '1.05rem', color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '1rem', letterSpacing: '1px' }}>
+            Direct Search Results ({searchResults.length})
+          </h3>
+          {searchLoading ? (
+            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+              <FiActivity className="icon-spin" style={{ fontSize: '2rem', marginBottom: '0.5rem' }} />
+              <div>Searching Archive...</div>
             </div>
-            <p>No archived tickets found for this period.</p>
-          </div>
+          ) : searchResults.length === 0 ? (
+            <div className="table-wrapper">
+              <div className="empty-state">
+                <div className="icon">
+                  <FiFolderMinus className="icon-float" style={{ fontSize: '3rem', color: 'var(--text-muted)' }} />
+                </div>
+                <p>No tickets matching "{searchQuery}" found.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="folder-tickets-grid">
+              {searchResults.map((t) => (
+                <div key={t._id} className="history-ticket-card" onClick={() => setSelectedTicket(t)}>
+                  <div className="ticket-card-name">
+                    {t.member1}{t.member2 ? ` & ${t.member2}` : ''}
+                  </div>
+                  <div className="ticket-card-meta">
+                    <span style={{ fontWeight: 600, color: 'var(--accent)' }}><FiCalendar /> {formatDateStr(t.visitDate)}</span>
+                    <span><FiClock /> {t.slotTime || 'No slot assigned'}</span>
+                    <span><FiPhone /> {t.phone}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
-        <div className="history-folders-container">
-          {folders.map((folder) => {
-            const isExpanded = !!expandedFolders[folder._id];
-            const tickets = folderTickets[folder._id] || [];
-            const isLoadingTickets = !!folderLoading[folder._id];
-
-            return (
-              <div key={folder._id} className="history-folder-card">
-                <div className="history-folder-header" onClick={() => toggleFolder(folder._id)}>
-                  <div className="folder-title-area">
-                    <FiFolder className="folder-icon" />
-                    <span className="folder-date-text">{formatDateStr(folder._id)}</span>
-                  </div>
-                  <div className="folder-badge-area">
-                    <span className="ticket-count-badge">{folder.count} {folder.count === 1 ? 'Ticket' : 'Tickets'}</span>
-                    {isExpanded ? <FiChevronUp className="folder-chevron expanded" /> : <FiChevronDown className="folder-chevron" />}
-                  </div>
+        // ── Week Groups Mode ──
+        <>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+              <FiActivity className="icon-spin" style={{ fontSize: '2rem', marginBottom: '0.5rem' }} />
+              <div>Loading Archive Folders...</div>
+            </div>
+          ) : weekGroups.length === 0 ? (
+            <div className="table-wrapper">
+              <div className="empty-state">
+                <div className="icon">
+                  <FiFolderMinus className="icon-float" style={{ fontSize: '3rem', color: 'var(--text-muted)' }} />
                 </div>
-                <div className={`history-folder-content ${isExpanded ? 'expanded' : ''}`}>
-                  {isExpanded && (
-                    <>
-                      {isLoadingTickets ? (
-                        <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                          <FiActivity className="icon-spin" style={{ marginRight: '0.5rem' }} />
-                          Loading tickets...
-                        </div>
-                      ) : tickets.length === 0 ? (
-                        <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                          No tickets found.
-                        </div>
-                      ) : (
-                        <div className="folder-tickets-grid">
-                          {tickets.map((t) => (
-                            <div key={t._id} className="history-ticket-card" onClick={() => setSelectedTicket(t)}>
-                              <div className="ticket-card-name">
-                                {t.member1}{t.member2 ? ` & ${t.member2}` : ''}
-                              </div>
-                              <div className="ticket-card-meta">
-                                <span><FiClock /> {t.slotTime || 'No slot assigned'}</span>
-                                <span><FiPhone /> {t.phone}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
+                <p>No archived tickets found for this period.</p>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          ) : (
+            <div>
+              {weekGroups.map((week) => (
+                <div key={week.weekKey}>
+                  {/* Shadow Archive Week Header */}
+                  <div className="shadow-archive-header">
+                    <div className="shadow-archive-title">
+                      WEEK {String(week.weekNumber).padStart(2, '0')}
+                    </div>
+                    <div className="shadow-archive-dates">
+                      {formatWeekDateRange(week.start, week.end)}
+                    </div>
+                  </div>
+
+                  {/* Folders List within Week */}
+                  <div className="history-folders-container" style={{ marginBottom: '2rem' }}>
+                    {week.folders.map((folder) => {
+                      const isExpanded = !!expandedFolders[folder._id];
+                      const tickets = folderTickets[folder._id] || [];
+                      const isLoadingTickets = !!folderLoading[folder._id];
+
+                      return (
+                        <div key={folder._id} className={`history-folder-card ${isExpanded ? 'open' : ''}`}>
+                          <div className="history-folder-header" onClick={() => toggleFolder(folder._id)}>
+                            <div className="folder-title-area">
+                              <FiFolder className="folder-icon" />
+                              <span className="folder-date-text">{formatDateStr(folder._id)}</span>
+                            </div>
+                            <div className="folder-badge-area">
+                              <span className="ticket-count-badge">{folder.count} {folder.count === 1 ? 'Ticket' : 'Tickets'}</span>
+                              {isExpanded ? <FiChevronUp className="folder-chevron expanded" /> : <FiChevronDown className="folder-chevron" />}
+                            </div>
+                          </div>
+                          <div className={`history-folder-content ${isExpanded ? 'expanded' : ''}`}>
+                            {isExpanded && (
+                              <>
+                                {isLoadingTickets ? (
+                                  <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                    <FiActivity className="icon-spin" style={{ marginRight: '0.5rem' }} />
+                                    Loading tickets...
+                                  </div>
+                                ) : tickets.length === 0 ? (
+                                  <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                    No tickets found.
+                                  </div>
+                                ) : (
+                                  <div className="folder-tickets-grid">
+                                    {tickets.map((t) => (
+                                      <div key={t._id} className="history-ticket-card" onClick={() => setSelectedTicket(t)}>
+                                        <div className="ticket-card-name">
+                                          {t.member1}{t.member2 ? ` & ${t.member2}` : ''}
+                                        </div>
+                                        <div className="ticket-card-meta">
+                                          <span><FiClock /> {t.slotTime || 'No slot assigned'}</span>
+                                          <span><FiPhone /> {t.phone}</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Ticket Detail Modal */}
@@ -382,19 +646,15 @@ const History = () => {
             </div>
             <div className="history-modal-body">
               <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                <h4 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--primary)', fontWeight: 700 }}>
+                <h4 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--accent)', fontWeight: 700, textTransform: 'capitalize' }}>
                   {selectedTicket.member1}
                   {selectedTicket.member2 ? ` & ${selectedTicket.member2}` : ''}
                 </h4>
               </div>
-              
+
               <div className="history-modal-row">
-                <span className="history-modal-label">Booked:</span>
-                <span className="history-modal-value">{formatDateStr(selectedTicket.bookingDate)}</span>
-              </div>
-              <div className="history-modal-row">
-                <span className="history-modal-label">Timeslot:</span>
-                <span className="history-modal-value">{selectedTicket.slotTime || '—'}</span>
+                <span className="history-modal-label">Name:</span>
+                <span className="history-modal-value">{selectedTicket.member1}{selectedTicket.member2 ? ` & ${selectedTicket.member2}` : ''}</span>
               </div>
               <div className="history-modal-row">
                 <span className="history-modal-label">Phone:</span>
@@ -413,7 +673,7 @@ const History = () => {
                 <span className="history-modal-value">{selectedTicket.member2 || '—'}</span>
               </div>
               <div className="history-modal-row">
-                <span className="history-modal-label">Bookers Date:</span>
+                <span className="history-modal-label">Booking Date:</span>
                 <span className="history-modal-value">{formatDateStr(selectedTicket.bookingDate)}</span>
               </div>
               <div className="history-modal-row">
@@ -421,12 +681,20 @@ const History = () => {
                 <span className="history-modal-value">{formatDateStr(selectedTicket.visitDate)}</span>
               </div>
               <div className="history-modal-row">
-                <span className="history-modal-label">Paid:</span>
-                <span className="history-modal-value">{selectedTicket.paid ? 'Yes' : 'No'}</span>
+                <span className="history-modal-label">Created Date:</span>
+                <span className="history-modal-value">{selectedTicket.createdAt ? new Date(selectedTicket.createdAt).toLocaleString('en-GB') : '—'}</span>
               </div>
               <div className="history-modal-row">
-                <span className="history-modal-label">Completed:</span>
-                <span className="history-modal-value">{selectedTicket.completed ? 'Yes' : 'No'}</span>
+                <span className="history-modal-label">Timeslot:</span>
+                <span className="history-modal-value">{selectedTicket.slotTime || '—'}</span>
+              </div>
+              <div className="history-modal-row">
+                <span className="history-modal-label">Paid Status:</span>
+                <span className="history-modal-value">{selectedTicket.paid ? 'Paid' : 'Unpaid'}</span>
+              </div>
+              <div className="history-modal-row">
+                <span className="history-modal-label">Completed Status:</span>
+                <span className="history-modal-value">{selectedTicket.completed ? 'Completed' : 'Not Completed'}</span>
               </div>
               <div className="history-modal-row">
                 <span className="history-modal-label">PDF Status:</span>
@@ -444,6 +712,73 @@ const History = () => {
                     <span style={{ color: 'var(--danger)' }}>Not Uploaded</span>
                   )}
                 </span>
+              </div>
+
+              {/* Action Buttons Row */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
+                {/* File input helper */}
+                <input 
+                  type="file" 
+                  accept="application/pdf" 
+                  id="modal-pdf-upload" 
+                  style={{ display: 'none' }} 
+                  onChange={handlePdfUpload} 
+                />
+
+                {/* Section Specific Action buttons */}
+                {subSection === 'weekly' && (
+                  <>
+                    {!selectedTicket.pdfUrl ? (
+                      <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
+                        Upload PDF
+                      </button>
+                    ) : (
+                      <button className="btn btn-warning btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
+                        Replace PDF
+                      </button>
+                    )}
+                    <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={handleTicketDelete}>
+                      Delete Ticket
+                    </button>
+                  </>
+                )}
+
+                {subSection === 'reports' && (
+                  <>
+                    {!selectedTicket.pdfUrl ? (
+                      <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
+                        Upload PDF
+                      </button>
+                    ) : (
+                      <button className="btn btn-warning btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
+                        Replace PDF
+                      </button>
+                    )}
+                    <button 
+                      className={`btn btn-sm ${selectedTicket.paid ? 'btn-outline' : 'btn-success'}`} 
+                      style={{ flex: 1 }} 
+                      onClick={() => handleStatusToggle('paid', selectedTicket.paid)}
+                    >
+                      {selectedTicket.paid ? 'Mark Unpaid' : 'Mark Paid'}
+                    </button>
+                    <button 
+                      className={`btn btn-sm ${selectedTicket.completed ? 'btn-outline' : 'btn-success'}`} 
+                      style={{ flex: 1 }} 
+                      onClick={() => handleStatusToggle('completed', selectedTicket.completed)}
+                    >
+                      {selectedTicket.completed ? 'Mark Not Completed' : 'Mark Completed'}
+                    </button>
+                    <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={handleTicketDelete}>
+                      Delete Ticket
+                    </button>
+                  </>
+                )}
+
+                {subSection === 'further' && (
+                  <button className="btn btn-danger btn-sm" style={{ width: '100%' }} onClick={handleTicketDelete}>
+                    Delete Ticket
+                  </button>
+                )}
               </div>
             </div>
           </div>

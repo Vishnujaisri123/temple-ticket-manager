@@ -88,7 +88,7 @@ const create = async (req, res) => {
 
 const update = async (req, res) => {
   const booking = await Booking.findOneAndUpdate(
-    { _id: req.params.id, createdBy: req.admin.id },
+    { _id: req.params.id },
     req.body,
     { new: true, runValidators: true }
   );
@@ -97,7 +97,7 @@ const update = async (req, res) => {
 };
 
 const remove = async (req, res) => {
-  const booking = await Booking.findOneAndDelete({ _id: req.params.id, createdBy: req.admin.id });
+  const booking = await Booking.findOneAndDelete({ _id: req.params.id });
   if (!booking) return res.status(404).json({ message: 'Booking not found' });
   if (booking.localPdfPath && fs.existsSync(booking.localPdfPath))
     fs.unlinkSync(booking.localPdfPath);
@@ -402,7 +402,43 @@ const claimOrphans = async (req, res) => {
   }
 };
 
-const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate) => {
+const applySearchQuery = (baseFilter, searchQuery) => {
+  if (!searchQuery) return baseFilter;
+
+  const regex = { $regex: searchQuery, $options: 'i' };
+  const orConditions = [
+    { member1: regex },
+    { member2: regex },
+    { phone: regex },
+    { gothram: regex }
+  ];
+
+  // Try parsing date in DD/MM/YYYY or DD-MM-YYYY format
+  const dateRegex = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/;
+  const match = searchQuery.match(dateRegex);
+  if (match) {
+    const day = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1;
+    const year = parseInt(match[3], 10);
+    
+    const start = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+    start.setMinutes(start.getMinutes() - 330); // shift UTC to IST start of day (UTC+5:30)
+    
+    const end = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
+    end.setMinutes(end.getMinutes() - 330); // shift UTC to IST end of day (UTC+5:30)
+
+    orConditions.push({ visitDate: { $gte: start, $lte: end } });
+    orConditions.push({ bookingDate: { $gte: start, $lte: end } });
+    orConditions.push({ createdAt: { $gte: start, $lte: end } });
+  }
+
+  const result = { ...baseFilter };
+  result.$and = result.$and || [];
+  result.$and.push({ $or: orConditions });
+  return result;
+};
+
+const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate, ticketFilter) => {
   let filter = {};
   
   const { getCurrentWeekStart, getCurrentWeekEnd } = require('../services/weeklyStatsService');
@@ -413,21 +449,30 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate)
     // Weekly History: Shows completed and sent tickets only
     filter.$or = [{ completed: true }, { pdfSent: true }];
 
-    // Apply weekly/custom date filters on visitDate (booked date)
+    // Apply weekly/custom date filters on createdAt
     if (dateFilter === 'current_week') {
-      filter.visitDate = { $gte: startOfWeek, $lte: endOfWeek };
+      filter.createdAt = { $gte: startOfWeek, $lte: endOfWeek };
     } else if (dateFilter === 'previous_week') {
       const prevStartOfWeek = new Date(startOfWeek);
       prevStartOfWeek.setDate(startOfWeek.getDate() - 7);
       const prevEndOfWeek = new Date(endOfWeek);
       prevEndOfWeek.setDate(endOfWeek.getDate() - 7);
-      filter.visitDate = { $gte: prevStartOfWeek, $lte: prevEndOfWeek };
+      filter.createdAt = { $gte: prevStartOfWeek, $lte: prevEndOfWeek };
     } else if (dateFilter === 'custom' && startDate && endDate) {
       const sD = new Date(startDate);
       sD.setHours(0, 0, 0, 0);
       const eD = new Date(endDate);
       eD.setHours(23, 59, 59, 999);
-      filter.visitDate = { $gte: sD, $lte: eD };
+      filter.createdAt = { $gte: sD, $lte: eD };
+    }
+
+    // Apply specific ticket sub-filters for navigation
+    if (ticketFilter === 'sent') {
+      filter.pdfSent = true;
+    } else if (ticketFilter === 'completed') {
+      filter.completed = true;
+    } else if (ticketFilter === 'paid') {
+      filter.paid = true;
     }
   } else if (subSection === 'reports') {
     // Reports: Shows active/non-completed/non-sent records
@@ -445,27 +490,16 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate)
 
 const getHistoryFolders = async (req, res) => {
   try {
-    const { subSection, dateFilter, startDate, endDate, searchQuery, sort } = req.query;
-    const baseFilter = buildHistoryFilter(req.admin.id, subSection, dateFilter, startDate, endDate);
-    
-    // Add search query if present
-    if (searchQuery) {
-      const regex = { $regex: searchQuery, $options: 'i' };
-      baseFilter.$and = baseFilter.$and || [];
-      baseFilter.$and.push({
-        $or: [
-          { member1: regex },
-          { phone: regex }
-        ]
-      });
-    }
+    const { subSection, dateFilter, startDate, endDate, searchQuery, sort, ticketFilter } = req.query;
+    let baseFilter = buildHistoryFilter(req.admin.id, subSection, dateFilter, startDate, endDate, ticketFilter);
+    baseFilter = applySearchQuery(baseFilter, searchQuery);
 
-    // First, get the folder counts grouped by visitDate (formatted as YYYY-MM-DD)
+    // Group the folder counts by createdAt date in Asia/Kolkata timezone (formatted as YYYY-MM-DD)
     const pipeline = [
       { $match: baseFilter },
       {
         $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$visitDate" } },
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: "Asia/Kolkata" } },
           count: { $sum: 1 }
         }
       },
@@ -474,7 +508,7 @@ const getHistoryFolders = async (req, res) => {
 
     const folders = await Booking.aggregate(pipeline);
 
-    // Also get statistical summary for 'reports' or general history
+    // Also get statistical summary for reports or general history
     const statsPipeline = [
       { $match: baseFilter },
       {
@@ -510,27 +544,21 @@ const getHistoryFolders = async (req, res) => {
 
 const getHistoryTickets = async (req, res) => {
   try {
-    const { subSection, dateFilter, startDate, endDate, searchQuery, bookingDate, sort } = req.query;
-    const baseFilter = buildHistoryFilter(req.admin.id, subSection, dateFilter, startDate, endDate);
+    const { subSection, dateFilter, startDate, endDate, searchQuery, bookingDate, sort, ticketFilter } = req.query;
+    let baseFilter = buildHistoryFilter(req.admin.id, subSection, dateFilter, startDate, endDate, ticketFilter);
     
     if (bookingDate) {
-      const startOfDay = new Date(bookingDate);
-      startOfDay.setUTCHours(0, 0, 0, 0);
-      const endOfDay = new Date(bookingDate);
-      endOfDay.setUTCHours(23, 59, 59, 999);
-      baseFilter.visitDate = { $gte: startOfDay, $lte: endOfDay };
+      const [year, month, day] = bookingDate.split('-').map(Number);
+      const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+      start.setMinutes(start.getMinutes() - 330); // shift UTC to IST start of day (UTC+5:30)
+      
+      const end = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+      end.setMinutes(end.getMinutes() - 330); // shift UTC to IST end of day (UTC+5:30)
+      
+      baseFilter.createdAt = { $gte: start, $lte: end };
     }
 
-    if (searchQuery) {
-      const regex = { $regex: searchQuery, $options: 'i' };
-      baseFilter.$and = baseFilter.$and || [];
-      baseFilter.$and.push({
-        $or: [
-          { member1: regex },
-          { phone: regex }
-        ]
-      });
-    }
+    baseFilter = applySearchQuery(baseFilter, searchQuery);
 
     let sortObj = { visitDate: sort === 'asc' ? 1 : -1, phone: 1 };
     if (sort === 'phone') {
