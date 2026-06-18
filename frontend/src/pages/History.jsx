@@ -58,6 +58,7 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
 
   // Ticket Detail Modal
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const [mobilePdfUrl, setMobilePdfUrl] = useState(null);
 
   // Direct search results
   const [searchResults, setSearchResults] = useState([]);
@@ -672,14 +673,27 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
                 <span className="history-modal-label">PDF Status:</span>
                 <span className="history-modal-value">
                   {selectedTicket.pdfUrl ? (
-                    <a 
-                      href={selectedTicket.pdfUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      style={{ color: 'var(--primary)', textDecoration: 'underline' }}
+                    <button 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (window.innerWidth >= 768) {
+                          window.open(selectedTicket.pdfUrl, '_blank');
+                        } else {
+                          setMobilePdfUrl(selectedTicket.pdfUrl);
+                        }
+                      }}
+                      style={{ 
+                        background: 'none', 
+                        border: 'none', 
+                        padding: 0, 
+                        color: 'var(--primary)', 
+                        textDecoration: 'underline', 
+                        cursor: 'pointer', 
+                        font: 'inherit' 
+                      }}
                     >
-                      Uploaded
-                    </a>
+                      View PDF
+                    </button>
                   ) : (
                     <span style={{ color: 'var(--danger)' }}>Not Uploaded</span>
                   )}
@@ -747,11 +761,74 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
                 )}
 
                 {subSection === 'further' && (
-                  <button className="btn btn-danger btn-sm" style={{ width: '100%' }} onClick={handleTicketDelete}>
-                    Delete Ticket
-                  </button>
+                  <>
+                    {!selectedTicket.pdfUrl ? (
+                      <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
+                        Upload PDF
+                      </button>
+                    ) : (
+                      <button className="btn btn-warning btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
+                        Replace PDF
+                      </button>
+                    )}
+                    <button 
+                      className={`btn btn-sm ${selectedTicket.paid ? 'btn-outline' : 'btn-success'}`}
+                      style={{ flex: 1 }} 
+                      onClick={() => handleStatusToggle('paid', selectedTicket.paid)}
+                    >
+                      Change Paid Status
+                    </button>
+                    <button 
+                      className={`btn btn-sm ${selectedTicket.completed ? 'btn-outline' : 'btn-success'}`}
+                      style={{ flex: 1 }} 
+                      onClick={() => handleStatusToggle('completed', selectedTicket.completed)}
+                    >
+                      Change Completed Status
+                    </button>
+                    <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={handleTicketDelete}>
+                      Delete Ticket
+                    </button>
+                  </>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {mobilePdfUrl && (
+        <div className="pdf-viewer-overlay" onClick={() => setMobilePdfUrl(null)}>
+          <div className="pdf-viewer-container" onClick={(e) => e.stopPropagation()}>
+            <div className="pdf-viewer-header">
+              <h3 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text)' }}>PDF Viewer</h3>
+              <button className="pdf-viewer-close" onClick={() => setMobilePdfUrl(null)}>
+                <FiX />
+              </button>
+            </div>
+            <div className="pdf-viewer-body" style={{ flex: 1, position: 'relative', minHeight: '350px' }}>
+              <iframe
+                src={mobilePdfUrl}
+                title="PDF Preview"
+                style={{ width: '100%', height: '100%', border: 'none', position: 'absolute', left: 0, top: 0 }}
+              />
+            </div>
+            <div className="pdf-viewer-footer" style={{ display: 'flex', gap: '0.5rem', padding: '0.75rem', background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+              <a 
+                href={mobilePdfUrl} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="btn btn-sm btn-outline"
+                style={{ flex: 1, textAlign: 'center', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}
+              >
+                Open in New Tab
+              </a>
+              <a 
+                href={mobilePdfUrl} 
+                download
+                className="btn btn-sm btn-primary"
+                style={{ flex: 1, textAlign: 'center', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}
+              >
+                Download PDF
+              </a>
             </div>
           </div>
         </div>

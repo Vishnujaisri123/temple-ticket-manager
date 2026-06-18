@@ -1302,5 +1302,57 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
   50% { opacity: 0.5; }
 }
 
+/* ── PDF Viewer Modal (Solo Leveling Style) ── */
+.pdf-viewer-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(5, 8, 22, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.pdf-viewer-container {
+  width: 100%;
+  max-width: 500px;
+  height: 90vh;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: shadowSummon 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.pdf-viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.pdf-viewer-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.3s;
+}
+
+.pdf-viewer-close:hover {
+  color: var(--text);
+}
+
 
 

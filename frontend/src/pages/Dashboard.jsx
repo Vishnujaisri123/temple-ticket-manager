@@ -34,9 +34,6 @@ const Dashboard = () => {
   const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
   const [historyFilter, setHistoryFilter] = useState('all');
   const [historySubSection, setHistorySubSection] = useState('weekly');
-  const [showShadowRealmAnimation, setShowShadowRealmAnimation] = useState(false);
-  const [animationClass, setAnimationClass] = useState('');
-  const [deletedCount, setDeletedCount] = useState(0);
 
   const checkAutoDeletedTickets = useCallback(async () => {
     try {
@@ -49,33 +46,12 @@ const Dashboard = () => {
 
       const { data } = await getAutoDeletedLogs({ since: lastCheck });
       if (data && data.length > 0) {
-        setDeletedCount(data.length);
-        setShowShadowRealmAnimation(true);
-        setAnimationClass('');
-        
-        // Show notification toast
         const count = data.length;
         const ticketText = count === 1 ? '1 expired ticket' : `${count} expired tickets`;
-        toast.info ? toast.info(`${ticketText} archived.`) : toast.success(`${ticketText} archived.`);
-
-        // Fade out animation after 4 seconds
-        const fadeOutTimer = setTimeout(() => {
-          setAnimationClass('fade-out');
-        }, 4000);
-
-        // Turn off overlay completely after 4.5 seconds
-        const closeTimer = setTimeout(() => {
-          setShowShadowRealmAnimation(false);
-        }, 4500);
-
-        localStorage.setItem('lastDeletedCheck', new Date().toISOString());
-        return () => {
-          clearTimeout(fadeOutTimer);
-          clearTimeout(closeTimer);
-        };
+        toast(`${ticketText} archived`, 'success');
       }
       
-      // Update check timestamp if no deletions found
+      // Update check timestamp
       localStorage.setItem('lastDeletedCheck', new Date().toISOString());
     } catch (err) {
       console.error('Failed to check auto-deleted tickets:', err);
@@ -387,20 +363,7 @@ const Dashboard = () => {
         </main>
       )}
 
-      {showShadowRealmAnimation && (
-        <div className={`shadow-realm-overlay ${animationClass}`}>
-          <div className="shadow-realm-gate">
-            <LuHistory className="shadow-realm-icon" />
-          </div>
-          <h1 className="shadow-realm-title">Shadow Realm</h1>
-          <p className="shadow-realm-subtitle">
-            Expired {deletedCount === 1 ? 'ticket has' : 'tickets have'} been archived
-          </p>
-          <div className="shadow-realm-status">
-            {deletedCount} {deletedCount === 1 ? 'Ticket' : 'Tickets'} Extracted
-          </div>
-        </div>
-      )}
+
     </div>
   );
 };
