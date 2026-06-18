@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useCallback } from 'react';
-import { getHistoryFolders, getHistoryTickets, getAutoDeletedLogs, updateBooking, deleteBooking, uploadPdf } from '../services/api';
+import { getHistoryFolders, getHistoryTickets, updateBooking, deleteBooking, uploadPdf } from '../services/api';
 import { toast } from '../components/Toast';
 import AutoPdfDropzone from '../components/AutoPdfDropzone';
 import {
@@ -39,7 +39,6 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
   const [loading, setLoading] = useState(true);
   const [sort, setSort] = useState('desc');
   const [searchQuery, setSearchQuery] = useState('');
-  const [deletedLogs, setDeletedLogs] = useState([]);
 
   // Subsections inside History
   const [subSection, setSubSection] = useState(
@@ -70,13 +69,6 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
     setFolderTickets({});
     setFolderLoading({});
     try {
-      if (subSection === 'deleted_logs') {
-        const { data } = await getAutoDeletedLogs({ all: 'true' });
-        setDeletedLogs(data || []);
-        setLoading(false);
-        return;
-      }
-
       const params = {
         subSection,
         sort,
@@ -372,9 +364,6 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
         <button className={`nav-tab ${subSection === 'further' ? 'active' : ''}`} onClick={() => { setSubSection('further'); setDateFilter('further_date'); window.history.pushState({}, '', '/history/further'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
           <FiFolderPlus /> Further Date Bookings
         </button>
-        <button className={`nav-tab ${subSection === 'deleted_logs' ? 'active' : ''}`} onClick={() => { setSubSection('deleted_logs'); window.history.pushState({}, '', '/history/deleted_logs'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-          <FiFolderMinus /> Deleted Tickets Log
-        </button>
       </div>
 
       {subSection === 'reports' && (
@@ -531,54 +520,6 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
             </div>
           )}
         </div>
-      ) : subSection === 'deleted_logs' ? (
-        // ── Deleted Tickets Log View ──
-        loading ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-            <FiActivity className="icon-spin" style={{ fontSize: '2rem', marginBottom: '0.5rem' }} />
-            <div>Loading Archive Logs...</div>
-          </div>
-        ) : (
-          <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-            <table className="bookings-table" style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--text)' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Devotee Name</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Phone Number</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Visit Date</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Archived Time</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {deletedLogs.length === 0 ? (
-                  <tr>
-                    <td colSpan="5" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                      <FiFolderMinus style={{ fontSize: '2rem', marginBottom: '0.5rem', display: 'block', margin: '0.5rem auto' }} />
-                      No auto-deleted logs found in the last 30 days.
-                    </td>
-                  </tr>
-                ) : (
-                  deletedLogs.map((log) => (
-                    <tr key={log._id} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '0.75rem', fontWeight: 600 }}>{log.memberName}</td>
-                      <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{log.phone}</td>
-                      <td style={{ padding: '0.75rem', color: 'var(--accent)' }}>{formatDateStr(log.visitDate)}</td>
-                      <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>
-                        {new Date(log.deletedAt).toLocaleString('en-GB')}
-                      </td>
-                      <td style={{ padding: '0.75rem' }}>
-                        <span style={{ background: 'rgba(168, 85, 247, 0.12)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.25)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600, display: 'inline-block' }}>
-                          Archived to Shadow Realm
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        )
       ) : (
         // ── Week Groups Mode ──
         <>
