@@ -41,11 +41,15 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Subsections inside History
-  const [subSection, setSubSection] = useState(initialSubSection); // 'weekly' | 'completed' | 'sent' | 'reports' | 'further'
+  const [subSection, setSubSection] = useState(
+    initialSubSection === 'completed' || initialSubSection === 'sent' ? 'weekly' : initialSubSection
+  ); // 'weekly' | 'reports' | 'further'
   const [dateFilter, setDateFilter] = useState('all'); // 'all' | 'current_week' | 'previous_week' | 'custom'
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-  const [ticketFilter, setTicketFilter] = useState(initialFilter);
+  const [ticketFilter, setTicketFilter] = useState(
+    initialSubSection === 'completed' ? 'completed_paid' : initialSubSection === 'sent' ? 'sent' : initialFilter
+  );
 
   // Folder interaction and lazy-loaded tickets
   const [expandedFolders, setExpandedFolders] = useState({});
@@ -351,14 +355,8 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
 
       {/* History Sub-navigation */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', borderBottom: '2px solid var(--border)', paddingBottom: '0.6rem', flexWrap: 'wrap' }}>
-        <button className={`nav-tab ${subSection === 'weekly' ? 'active' : ''}`} onClick={() => { setSubSection('weekly'); setDateFilter('all'); window.history.pushState({}, '', '/history/weekly'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+        <button className={`nav-tab ${subSection === 'weekly' ? 'active' : ''}`} onClick={() => { setSubSection('weekly'); setTicketFilter('all'); setDateFilter('all'); window.history.pushState({}, '', '/history/weekly'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
           <FiCalendar /> Weekly History
-        </button>
-        <button className={`nav-tab ${subSection === 'completed' ? 'active' : ''}`} onClick={() => { setSubSection('completed'); setDateFilter('all'); window.history.pushState({}, '', '/history/completed'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-          <FiCheckCircle /> Completed Tickets
-        </button>
-        <button className={`nav-tab ${subSection === 'sent' ? 'active' : ''}`} onClick={() => { setSubSection('sent'); setDateFilter('all'); window.history.pushState({}, '', '/history/sent'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-          <FiSend /> Sent Tickets
         </button>
         <button className={`nav-tab ${subSection === 'reports' ? 'active' : ''}`} onClick={() => { setSubSection('reports'); setDateFilter('monthly'); window.history.pushState({}, '', '/history/reports'); }} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
           <HiOutlineDocumentReport /> Reports
@@ -368,28 +366,27 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
         </button>
       </div>
 
-      {/* Date Scope Selectors */}
+      {/* Weekly History filter chips with Solo Leveling aesthetics */}
       {subSection === 'weekly' && (
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem', background: 'var(--surface)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
-          <button className={`btn btn-sm ${dateFilter === 'all' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setDateFilter('all')}>
-            All Time
+        <div className="history-filter-chips">
+          <button 
+            className={`filter-chip ${ticketFilter === 'all' ? 'active' : ''}`} 
+            onClick={() => { setTicketFilter('all'); window.history.pushState({}, '', '/history/weekly'); }}
+          >
+            All Tickets
           </button>
-          <button className={`btn btn-sm ${dateFilter === 'current_week' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setDateFilter('current_week')}>
-            Current Week
+          <button 
+            className={`filter-chip ${ticketFilter === 'completed_paid' ? 'active' : ''}`} 
+            onClick={() => { setTicketFilter('completed_paid'); window.history.pushState({}, '', '/history/completed'); }}
+          >
+            Completed & Paid <span className="chip-badge">{stats.weeklyCompletedPaidCount || 0}</span>
           </button>
-          <button className={`btn btn-sm ${dateFilter === 'previous_week' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setDateFilter('previous_week')}>
-            Previous Week
+          <button 
+            className={`filter-chip ${ticketFilter === 'sent' ? 'active' : ''}`} 
+            onClick={() => { setTicketFilter('sent'); window.history.pushState({}, '', '/history/sent'); }}
+          >
+            Tickets Sent <span className="chip-badge">{stats.weeklySentCount || 0}</span>
           </button>
-          <button className={`btn btn-sm ${dateFilter === 'custom' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setDateFilter('custom')}>
-            Custom Date Range
-          </button>
-          {dateFilter === 'custom' && (
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginLeft: 'auto', flexWrap: 'wrap' }}>
-              <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} style={{ padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>to</span>
-              <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} style={{ padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
-            </div>
-          )}
         </div>
       )}
 
@@ -404,22 +401,6 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
         <div className="reminder-banner" style={{ borderLeft: '4px solid var(--primary)', marginBottom: '1rem', background: 'rgba(59, 130, 246, 0.08)' }}>
           <span className="icon"><FiActivity className="icon-glow" style={{ color: 'var(--accent)' }} /></span>
           <span style={{ color: 'var(--text)', fontSize: '0.85rem' }}><strong>Future Bookings:</strong> Displaying all future visit date bookings. Done/Sent bookings are excluded.</span>
-        </div>
-      )}
-
-      {/* Navigation Filter Indicator (if filter is active in Weekly History) */}
-      {subSection === 'weekly' && ticketFilter !== 'all' && (
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '1rem', background: 'rgba(59, 130, 246, 0.12)', padding: '0.5rem 1rem', borderRadius: '6px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-          <span style={{ fontSize: '0.82rem', color: 'var(--accent)', fontWeight: 600, textTransform: 'uppercase' }}>
-            Shortcut Active: {ticketFilter === 'sent' ? 'Sent' : ticketFilter === 'completed' ? 'Completed' : 'Paid'} Tickets Only
-          </span>
-          <button 
-            className="btn btn-sm btn-outline" 
-            style={{ marginLeft: 'auto', padding: '0.2rem 0.5rem', fontSize: '0.75rem' }} 
-            onClick={() => setTicketFilter('all')}
-          >
-            Clear Filter
-          </button>
         </div>
       )}
 
@@ -451,56 +432,7 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
               </div>
             </div>
           )}
-          {subSection === 'completed' && (
-            <div className="stats-bar" style={{ marginBottom: '1.5rem' }}>
-              <div className="stat-card">
-                <span className="stat-icon"><FiClipboard className="icon-float" /></span>
-                <div className="stat-info">
-                  <div className="label">Completed Tickets</div>
-                  <div className="value">{stats.count || 0}</div>
-                </div>
-              </div>
-              <div className="stat-card money">
-                <span className="stat-icon"><FiDollarSign className="icon-float" style={{ color: 'var(--accent)' }} /></span>
-                <div className="stat-info">
-                  <div className="label">Total Amount</div>
-                  <div className="value">₹{stats.totalAmount || 0}</div>
-                </div>
-              </div>
-              <div className="stat-card">
-                <span className="stat-icon"><FiCheckCircle className="icon-float" style={{ color: 'var(--success)' }} /></span>
-                <div className="stat-info">
-                  <div className="label">Paid (Completed)</div>
-                  <div className="value">{stats.paidCount || 0}</div>
-                </div>
-              </div>
-            </div>
-          )}
-          {subSection === 'sent' && (
-            <div className="stats-bar" style={{ marginBottom: '1.5rem' }}>
-              <div className="stat-card">
-                <span className="stat-icon"><FiClipboard className="icon-float" /></span>
-                <div className="stat-info">
-                  <div className="label">Sent Tickets</div>
-                  <div className="value">{stats.count || 0}</div>
-                </div>
-              </div>
-              <div className="stat-card money">
-                <span className="stat-icon"><FiDollarSign className="icon-float" style={{ color: 'var(--accent)' }} /></span>
-                <div className="stat-info">
-                  <div className="label">Total Amount</div>
-                  <div className="value">₹{stats.totalAmount || 0}</div>
-                </div>
-              </div>
-              <div className="stat-card">
-                <span className="stat-icon"><FiCheckCircle className="icon-float" style={{ color: 'var(--success)' }} /></span>
-                <div className="stat-info">
-                  <div className="label">Paid (Sent)</div>
-                  <div className="value">{stats.paidCount || 0}</div>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Legacy Completed/Sent sections removed */}
           {subSection === 'reports' && (
             <div className="stats-bar financial-stats" style={{ marginBottom: '1.5rem' }}>
               <div className="stat-card">
@@ -783,35 +715,15 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
                 {/* Section Specific Action buttons */}
                 {subSection === 'weekly' && (
                   <>
-                    {!selectedTicket.pdfUrl && (
+                    {!selectedTicket.pdfUrl ? (
                       <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
                         Upload PDF
                       </button>
-                    )}
-                    <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={handleTicketDelete}>
-                      Delete Ticket
-                    </button>
-                  </>
-                )}
-
-                {subSection === 'completed' && (
-                  <>
-                    {!selectedTicket.pdfUrl && (
-                      <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
-                        Upload PDF
+                    ) : (
+                      <button className="btn btn-warning btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
+                        Replace PDF
                       </button>
                     )}
-                    <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={handleTicketDelete}>
-                      Delete Ticket
-                    </button>
-                  </>
-                )}
-
-                {subSection === 'sent' && (
-                  <>
-                    <button className="btn btn-warning btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
-                      Replace PDF
-                    </button>
                     <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={handleTicketDelete}>
                       Delete Ticket
                     </button>

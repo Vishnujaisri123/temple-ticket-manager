@@ -1091,4 +1091,76 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
   --accent: #22D3EE;
 }
 
+/* Solo Leveling Weekly Filter Chips */
+.history-filter-chips {
+  display: flex;
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.6); /* Dark glass */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  color: var(--text-muted);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.filter-chip::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(56, 189, 248, 0.1));
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.filter-chip:hover::before {
+  opacity: 1;
+}
+
+.filter-chip:hover {
+  border-color: rgba(56, 189, 248, 0.6);
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(56, 189, 248, 0.2);
+}
+
+.filter-chip.active {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.4), inset 0 0 6px rgba(56, 189, 248, 0.2);
+  transform: scale(1.03);
+}
+
+.filter-chip.active .chip-badge {
+  background: var(--accent);
+  color: #0f172a;
+}
+
+.chip-badge {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--accent);
+  padding: 0.15rem 0.45rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition: all 0.3s;
+}
+
+
 

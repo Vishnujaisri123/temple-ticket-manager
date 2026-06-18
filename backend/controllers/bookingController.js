@@ -439,47 +439,59 @@ const applySearchQuery = (baseFilter, searchQuery) => {
 };
 
 const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate, ticketFilter) => {
-  let filter = { createdAt: { $exists: true, $ne: null } };
+  const mongoose = require('mongoose');
+  let filter = { 
+    createdBy: new mongoose.Types.ObjectId(adminId),
+    createdAt: { $exists: true, $ne: null } 
+  };
   
   const { getCurrentWeekStart, getCurrentWeekEnd } = require('../services/weeklyStatsService');
   const startOfWeek = getCurrentWeekStart();
   const endOfWeek = getCurrentWeekEnd(startOfWeek);
 
   if (subSection === 'weekly') {
-    // Weekly History: Shows completed and sent tickets only
-    filter.$or = [{ completed: true }, { pdfSent: true }];
-
-    // Apply weekly/custom date filters on createdAt
-    if (dateFilter === 'current_week') {
-      filter.createdAt = { ...filter.createdAt, $gte: startOfWeek, $lte: endOfWeek };
-    } else if (dateFilter === 'previous_week') {
-      const prevStartOfWeek = new Date(startOfWeek);
-      prevStartOfWeek.setDate(startOfWeek.getDate() - 7);
-      const prevEndOfWeek = new Date(endOfWeek);
-      prevEndOfWeek.setDate(endOfWeek.getDate() - 7);
-      filter.createdAt = { ...filter.createdAt, $gte: prevStartOfWeek, $lte: prevEndOfWeek };
-    } else if (dateFilter === 'custom' && startDate && endDate) {
-      const sD = new Date(startDate);
-      sD.setHours(0, 0, 0, 0);
-      const eD = new Date(endDate);
-      eD.setHours(23, 59, 59, 999);
-      filter.createdAt = { ...filter.createdAt, $gte: sD, $lte: eD };
-    }
-
-    // Apply specific ticket sub-filters for navigation
-    if (ticketFilter === 'sent') {
-      filter.pdfSent = true;
-    } else if (ticketFilter === 'completed') {
+    if (ticketFilter === 'completed_paid') {
+      // Completed & Paid: completed = true AND paid = true AND pdfUrl is empty/null
       filter.completed = true;
-    } else if (ticketFilter === 'paid') {
       filter.paid = true;
+      filter.$or = [{ pdfUrl: '' }, { pdfUrl: null }];
+    } else if (ticketFilter === 'sent') {
+      // Tickets Sent: pdfUrl is not empty OR pdfSent is true
+      filter.$or = [
+        { pdfSent: true },
+        { pdfUrl: { $ne: '', $ne: null } }
+      ];
+    } else {
+      // All Tickets (Weekly History): Shows completed, sent, and pdf-attached tickets
+      filter.$or = [
+        { completed: true },
+        { pdfSent: true },
+        { pdfUrl: { $ne: '', $ne: null } }
+      ];
+
+      // Apply weekly/custom date filters on createdAt
+      if (dateFilter === 'current_week') {
+        filter.createdAt = { ...filter.createdAt, $gte: startOfWeek, $lte: endOfWeek };
+      } else if (dateFilter === 'previous_week') {
+        const prevStartOfWeek = new Date(startOfWeek);
+        prevStartOfWeek.setDate(startOfWeek.getDate() - 7);
+        const prevEndOfWeek = new Date(endOfWeek);
+        prevEndOfWeek.setDate(endOfWeek.getDate() - 7);
+        filter.createdAt = { ...filter.createdAt, $gte: prevStartOfWeek, $lte: prevEndOfWeek };
+      } else if (dateFilter === 'custom' && startDate && endDate) {
+        const sD = new Date(startDate);
+        sD.setHours(0, 0, 0, 0);
+        const eD = new Date(endDate);
+        eD.setHours(23, 59, 59, 999);
+        filter.createdAt = { ...filter.createdAt, $gte: sD, $lte: eD };
+      }
     }
   } else if (subSection === 'completed') {
-    // Completed Tickets: completed = true AND pdfUrl is empty (not uploaded yet)
+    // Completed Tickets (Legacy/Alias)
     filter.completed = true;
     filter.$or = [{ pdfUrl: '' }, { pdfUrl: null }];
   } else if (subSection === 'sent') {
-    // Sent Tickets: pdfSent = true AND pdfUrl is not empty (already uploaded)
+    // Sent Tickets (Legacy/Alias)
     filter.pdfSent = true;
     filter.pdfUrl = { $ne: '', $ne: null };
   } else if (subSection === 'reports') {
@@ -543,6 +555,28 @@ const getHistoryFolders = async (req, res) => {
 
     const statsResult = await Booking.aggregate(statsPipeline);
     const stats = statsResult[0] || { count: 0, totalAmount: 0, totalProfit: 0, paidCount: 0, unpaidCount: 0, completedCount: 0, sentCount: 0 };
+
+    if (subSection === 'weekly') {
+      const mongoose = require('mongoose');
+      const adminObjId = new mongoose.Types.ObjectId(req.admin.id);
+
+      // Completed & Paid: completed = true, paid = true, pdfUrl empty
+      stats.weeklyCompletedPaidCount = await Booking.countDocuments({
+        createdBy: adminObjId,
+        completed: true,
+        paid: true,
+        $or: [{ pdfUrl: '' }, { pdfUrl: null }]
+      });
+
+      // Tickets Sent: pdfUrl not empty OR pdfSent = true
+      stats.weeklySentCount = await Booking.countDocuments({
+        createdBy: adminObjId,
+        $or: [
+          { pdfSent: true },
+          { pdfUrl: { $ne: '', $ne: null } }
+        ]
+      });
+    }
 
     res.json({ folders, stats });
   } catch (err) {
