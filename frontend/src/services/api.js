@@ -24,6 +24,7 @@ api.interceptors.response.use(
 export const getBookings = (params) => api.get('/bookings', { params });
 export const getHistoryFolders = (params) => api.get('/bookings/history/folders', { params });
 export const getHistoryTickets = (params) => api.get('/bookings/history/tickets', { params });
+export const getAutoDeletedLogs = (params) => api.get('/bookings/history/auto-deleted', { params });
 export const getTotalCount = () => api.get('/bookings/count');
 export const createBooking = (data) => api.post('/bookings', data);
 export const getStats = () => api.get('/bookings/stats');

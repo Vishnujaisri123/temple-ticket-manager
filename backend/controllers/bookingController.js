@@ -662,6 +662,25 @@ const getHistoryTickets = async (req, res) => {
   }
 };
 
+const getAutoDeletedLogs = async (req, res) => {
+  try {
+    const { since } = req.query;
+    let query = { createdBy: req.admin.id };
+    if (since) {
+      query.deletedAt = { $gt: new Date(since) };
+    } else {
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+      query.deletedAt = { $gt: oneDayAgo };
+    }
+    const DeletedTicketsLog = require('../models/DeletedTicketsLog');
+    const logs = await DeletedTicketsLog.find(query).sort({ deletedAt: -1 }).lean();
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getAll,
   create,
@@ -674,5 +693,6 @@ module.exports = {
   getStats,
   claimOrphans,
   getHistoryFolders,
-  getHistoryTickets
+  getHistoryTickets,
+  getAutoDeletedLogs
 };

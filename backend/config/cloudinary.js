@@ -34,4 +34,16 @@ const uploadToCloudinary = (buffer, filename) =>
     Readable.from(buffer).pipe(stream);
   });
 
-module.exports = { upload, uploadToCloudinary };
+const deleteFromCloudinary = (publicId) =>
+  new Promise((resolve, reject) => {
+    cloudinary.uploader.destroy(
+      publicId,
+      { resource_type: 'raw' },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    );
+  });
+
+module.exports = { upload, uploadToCloudinary, deleteFromCloudinary };

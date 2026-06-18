@@ -4,7 +4,7 @@ const protect = require('../middleware/auth');
 const { upload } = require('../config/cloudinary');
 const {
   getAll, create, update, remove, uploadPdf, uploadAutoPdf, getReminderBookings, getTotalCount, getStats, claimOrphans,
-  getHistoryFolders, getHistoryTickets,
+  getHistoryFolders, getHistoryTickets, getAutoDeletedLogs,
 } = require('../controllers/bookingController');
 
 router.use(protect);
@@ -16,6 +16,7 @@ router.get('/count', getTotalCount);
 router.get('/reminders', getReminderBookings);
 router.get('/history/folders', getHistoryFolders);
 router.get('/history/tickets', getHistoryTickets);
+router.get('/history/auto-deleted', getAutoDeletedLogs);
 router.get('/', getAll);
 router.post('/', create);
 router.put('/:id', update);
