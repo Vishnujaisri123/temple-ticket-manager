@@ -403,7 +403,7 @@ const claimOrphans = async (req, res) => {
 };
 
 const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate) => {
-  let filter = { createdBy: adminId };
+  let filter = {};
   
   const { getCurrentWeekStart, getCurrentWeekEnd } = require('../services/weeklyStatsService');
   const startOfWeek = getCurrentWeekStart();
@@ -413,21 +413,21 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate)
     // Weekly History: Shows completed and sent tickets only
     filter.$or = [{ completed: true }, { pdfSent: true }];
 
-    // Apply weekly/custom date filters on createdAt
+    // Apply weekly/custom date filters on visitDate (booked date)
     if (dateFilter === 'current_week') {
-      filter.createdAt = { $gte: startOfWeek, $lte: endOfWeek };
+      filter.visitDate = { $gte: startOfWeek, $lte: endOfWeek };
     } else if (dateFilter === 'previous_week') {
       const prevStartOfWeek = new Date(startOfWeek);
       prevStartOfWeek.setDate(startOfWeek.getDate() - 7);
       const prevEndOfWeek = new Date(endOfWeek);
       prevEndOfWeek.setDate(endOfWeek.getDate() - 7);
-      filter.createdAt = { $gte: prevStartOfWeek, $lte: prevEndOfWeek };
+      filter.visitDate = { $gte: prevStartOfWeek, $lte: prevEndOfWeek };
     } else if (dateFilter === 'custom' && startDate && endDate) {
       const sD = new Date(startDate);
       sD.setHours(0, 0, 0, 0);
       const eD = new Date(endDate);
       eD.setHours(23, 59, 59, 999);
-      filter.createdAt = { $gte: sD, $lte: eD };
+      filter.visitDate = { $gte: sD, $lte: eD };
     }
   } else if (subSection === 'reports') {
     // Reports: Shows active/non-completed/non-sent records
@@ -460,12 +460,12 @@ const getHistoryFolders = async (req, res) => {
       });
     }
 
-    // First, get the folder counts grouped by bookingDate (formatted as YYYY-MM-DD)
+    // First, get the folder counts grouped by visitDate (formatted as YYYY-MM-DD)
     const pipeline = [
       { $match: baseFilter },
       {
         $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$bookingDate" } },
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$visitDate" } },
           count: { $sum: 1 }
         }
       },
@@ -518,7 +518,7 @@ const getHistoryTickets = async (req, res) => {
       startOfDay.setUTCHours(0, 0, 0, 0);
       const endOfDay = new Date(bookingDate);
       endOfDay.setUTCHours(23, 59, 59, 999);
-      baseFilter.bookingDate = { $gte: startOfDay, $lte: endOfDay };
+      baseFilter.visitDate = { $gte: startOfDay, $lte: endOfDay };
     }
 
     if (searchQuery) {

@@ -148,8 +148,8 @@ const History = () => {
             />
           </div>
           <select className="sort-select" value={sort} onChange={(e) => setSort(e.target.value)}>
-            <option value="desc">Bookers Date ↓</option>
-            <option value="asc">Bookers Date ↑</option>
+            <option value="desc">Booked Date ↓</option>
+            <option value="asc">Booked Date ↑</option>
             <option value="phone">Phone Number</option>
           </select>
         </div>
