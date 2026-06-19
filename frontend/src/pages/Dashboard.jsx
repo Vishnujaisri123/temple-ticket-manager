@@ -324,11 +324,11 @@ const Dashboard = () => {
             </div>
             <div className="stat-card phonepe">
               <span className="stat-icon"><MdPhoneAndroid className="icon-float" style={{ color: 'var(--primary)' }} /></span>
-              <div className="stat-info"><div className="label">Weekly PhonePe</div><div className="value">₹{stats.weekly?.phonepeAmount || 0}</div></div>
+              <div className="stat-info"><div className="label">Weekly PhonePe</div><div className="value">{stats.weekly?.phonepeCount || 0}</div></div>
             </div>
             <div className="stat-card cash">
               <span className="stat-icon"><TbCash className="icon-float" style={{ color: 'var(--success)' }} /></span>
-              <div className="stat-info"><div className="label">Weekly Cash</div><div className="value">₹{stats.weekly?.cashAmount || 0}</div></div>
+              <div className="stat-info"><div className="label">Weekly Cash</div><div className="value">{stats.weekly?.cashCount || 0}</div></div>
             </div>
           </div>
 

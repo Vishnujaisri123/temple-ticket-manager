@@ -1,6 +1,5 @@
 const path = require('path');
 const fs = require('fs');
-const pdfParse = require('pdf-parse');
 const Booking = require('../models/Booking');
 const Admin = require('../models/Admin');
 const { uploadToCloudinary } = require('../config/cloudinary');
@@ -25,7 +24,7 @@ const performAutoCorrection = async (adminId) => {
 
 const getAll = async (req, res) => {
   await performAutoCorrection(req.admin.id);
-  const { status, sort, weekly, filterType, startDate, endDate } = req.query;
+  const { status, sort, weekly, filterType, startDate, endDate, searchQuery } = req.query;
   let filter = { createdBy: req.admin.id };
 
   const { getCurrentWeekStart, getCurrentWeekEnd } = require('../services/weeklyStatsService');
@@ -88,6 +87,8 @@ const getAll = async (req, res) => {
     }
   }
 
+  filter = applySearchQuery(filter, searchQuery);
+
   let sortObj = { visitDate: sort === 'asc' ? 1 : -1, phone: 1 };
   if (sort === 'phone') {
     sortObj = { phone: 1, visitDate: 1 };
@@ -132,7 +133,7 @@ const uploadPdf = async (req, res) => {
   if (isProduction) {
     // Production: Respond IMMEDIATELY, then upload to Cloudinary in background
     // We update localPdfUrl to a temporary string so the UI knows a PDF exists, even while it's processing
-    const booking = await Booking.findByIdAndUpdate(id, { localPdfUrl: 'processing...' }, { new: true });
+    const booking = await Booking.findByIdAndUpdate(id, { localPdfUrl: 'processing...', pdfUploaded: true }, { new: true });
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
     
     // Respond instantly so the UI doesn't hang
@@ -141,7 +142,7 @@ const uploadPdf = async (req, res) => {
     // Background Cloudinary upload
     uploadToCloudinary(req.file.buffer, `ticket_${id}_${Date.now()}`)
       .then(result => {
-        Booking.findByIdAndUpdate(id, { pdfUrl: result.secure_url, localPdfUrl: result.secure_url }).exec();
+        Booking.findByIdAndUpdate(id, { pdfUrl: result.secure_url, localPdfUrl: result.secure_url, pdfUploaded: true }).exec();
       })
       .catch(err => console.error('Cloudinary upload failed:', err.message));
       
@@ -153,7 +154,7 @@ const uploadPdf = async (req, res) => {
     localPdfUrl = `${process.env.SERVER_URL}/uploads/${localFilename}`;
     pdfUrl = localPdfUrl;
 
-    const booking = await Booking.findByIdAndUpdate(id, { pdfUrl, localPdfUrl, localPdfPath }, { new: true });
+    const booking = await Booking.findByIdAndUpdate(id, { pdfUrl, localPdfUrl, localPdfPath, pdfUploaded: true }, { new: true });
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
     
     // Respond instantly
@@ -161,7 +162,7 @@ const uploadPdf = async (req, res) => {
 
     // Background Cloudinary upload
     uploadToCloudinary(req.file.buffer, `ticket_${id}_${Date.now()}`)
-      .then(result => Booking.findByIdAndUpdate(id, { pdfUrl: result.secure_url }).exec())
+      .then(result => Booking.findByIdAndUpdate(id, { pdfUrl: result.secure_url, pdfUploaded: true }).exec())
       .catch(err => console.error('Cloudinary background upload failed:', err.message));
 
     // Clean up old local file
@@ -172,120 +173,7 @@ const uploadPdf = async (req, res) => {
   }
 };
 
-const uploadAutoPdf = async (req, res) => {
-  if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-  
-  try {
-    // Read only the first page to make parsing lightning fast
-    const pdfData = await pdfParse(req.file.buffer, { max: 1 });
-    
-    // Normalize spaces and lowercase for robust matching
-    const normalizeText = (str) => {
-      if (!str) return '';
-      return str.toLowerCase().replace(/\s+/g, ' ').trim();
-    };
-    
-    const textNormalized = normalizeText(pdfData.text);
 
-    // Optimize: fetch recent bookings first, use .lean() for huge performance boost, and only select needed fields
-    const bookings = await Booking.find({ createdBy: req.admin.id, completed: true, paid: true })
-      .select('member1 member2 gothram visitDate bookingDate _id')
-      .sort({ visitDate: -1 })
-      .lean();
-      
-    let matchedBooking = null;
-    
-    // Helper to format date using UTC getters to prevent server/local timezone shifts
-    const formatPdfDateUTC = (date) => {
-      const d = new Date(date);
-      const day = String(d.getUTCDate()).padStart(2, '0');
-      const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-      const year = d.getUTCFullYear();
-      return {
-        hyphen: `${day}-${month}-${year}`,
-        slash: `${day}/${month}/${year}`
-      };
-    };
-
-    for (const b of bookings) {
-      if (!b.member1) continue;
-      
-      const m1Match = textNormalized.includes(normalizeText(b.member1));
-      const m2Match = b.member2 && textNormalized.includes(normalizeText(b.member2));
-      const gothramMatch = b.gothram && textNormalized.includes(normalizeText(b.gothram));
-      
-      let score = 0;
-      if (m1Match) score += 10;
-      if (m2Match) score += 5;
-      if (gothramMatch) score += 5;
-      
-      if (b.visitDate) {
-        const visitDates = formatPdfDateUTC(b.visitDate);
-        if (textNormalized.includes(visitDates.hyphen) || textNormalized.includes(visitDates.slash)) {
-          score += 10; // Seva Date
-        }
-      }
-
-      if (b.bookingDate) {
-        const bookingDates = formatPdfDateUTC(b.bookingDate);
-        if (textNormalized.includes(bookingDates.hyphen) || textNormalized.includes(bookingDates.slash)) {
-          score += 5; // Booking On date
-        }
-      }
-      
-      // If we have a very strong match (Names + Date + Gothram), break early!
-      if (score >= 15) { 
-         if (!matchedBooking || score > matchedBooking.score) {
-           matchedBooking = { booking: b, score };
-           // Perfect match: member1 + member2 (or single) + gothram + visit date => 30 points
-           if (score >= 25) break; 
-         }
-      }
-    }
-    
-    if (!matchedBooking) {
-      return res.status(404).json({ message: 'No matching booking found. Ensure Devotee Names, Gothram, and Seva Date match exactly.' });
-    }
-    
-    const id = matchedBooking.booking._id;
-    const isProduction = process.env.NODE_ENV === 'production';
-    let pdfUrl = '';
-    let localPdfUrl = '';
-    let localPdfPath = '';
-
-    if (isProduction) {
-      const updatedBooking = await Booking.findByIdAndUpdate(id, { localPdfUrl: 'processing...' }, { new: true });
-      
-      // Respond instantly
-      res.json({ message: `Successfully matched to ${updatedBooking.member1}!`, booking: updatedBooking });
-      
-      // Background Cloudinary upload
-      uploadToCloudinary(req.file.buffer, `ticket_${id}_${Date.now()}`)
-        .then(result => Booking.findByIdAndUpdate(id, { pdfUrl: result.secure_url, localPdfUrl: result.secure_url }).exec())
-        .catch(err => console.error('Cloudinary bg upload failed:', err.message));
-        
-    } else {
-      const localFilename = `ticket_${Date.now()}.pdf`;
-      localPdfPath = path.join(uploadDir, localFilename);
-      fs.writeFileSync(localPdfPath, req.file.buffer);
-      localPdfUrl = `${process.env.SERVER_URL}/uploads/${localFilename}`;
-      pdfUrl = localPdfUrl;
-
-      const updatedBooking = await Booking.findByIdAndUpdate(id, { pdfUrl, localPdfUrl, localPdfPath }, { new: true });
-      
-      // Respond instantly
-      res.json({ message: `Successfully matched to ${updatedBooking.member1}!`, booking: updatedBooking });
-      
-      // Background Cloudinary upload
-      uploadToCloudinary(req.file.buffer, `ticket_${id}_${Date.now()}`)
-        .then(result => Booking.findByIdAndUpdate(id, { pdfUrl: result.secure_url }).exec())
-        .catch(err => console.error('Cloudinary bg upload failed:', err.message));
-    }
-  } catch (err) {
-    console.error('Auto upload error:', err);
-    res.status(500).json({ message: 'Failed to process PDF: ' + err.message });
-  }
-};
 
 
 const getReminderBookings = async (req, res) => {
@@ -337,8 +225,8 @@ const getStats = async (req, res) => {
       if (b.paid) paidCount++;
       if (b.pdfSent) sentCount++;
       
-      if (b.paymentMethod === 'phonepe') phonepeAmount += amt;
-      if (b.paymentMethod === 'cash') cashAmount += amt;
+      if (b.paymentType === 'phonepe') phonepeAmount += amt;
+      if (b.paymentType === 'cash') cashAmount += amt;
       
       const dateKey = b.createdAt ? b.createdAt.toISOString().split('T')[0] : 'Unknown';
       if (!dailyStats[dateKey]) {
@@ -354,17 +242,18 @@ const getStats = async (req, res) => {
       dailyStats[dateKey].count++;
       dailyStats[dateKey].totalAmount += amt;
       dailyStats[dateKey].totalProfit += prf;
-      if (b.paymentMethod === 'phonepe') dailyStats[dateKey].phonepeAmount += amt;
-      if (b.paymentMethod === 'cash') dailyStats[dateKey].cashAmount += amt;
+      if (b.paymentType === 'phonepe') dailyStats[dateKey].phonepeAmount += amt;
+      if (b.paymentType === 'cash') dailyStats[dateKey].cashAmount += amt;
 
       if (dateKey === todayKey) {
         todayStats.count++;
         todayStats.totalAmount += amt;
+        todayStats.todayProfit = (todayStats.todayProfit || 0) + prf; // keep compatible
         todayStats.totalProfit += prf;
         if (b.paid) todayStats.paidCount++;
         if (b.pdfSent) todayStats.sentCount++;
-        if (b.paymentMethod === 'phonepe') todayStats.phonepeAmount += amt;
-        if (b.paymentMethod === 'cash') todayStats.cashAmount += amt;
+        if (b.paymentType === 'phonepe') todayStats.phonepeAmount += amt;
+        if (b.paymentType === 'cash') todayStats.cashAmount += amt;
       }
       
       if (b.createdBy) {
@@ -709,7 +598,6 @@ module.exports = {
   update,
   remove,
   uploadPdf,
-  uploadAutoPdf,
   getReminderBookings,
   getTotalCount,
   getStats,

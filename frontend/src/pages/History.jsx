@@ -1,8 +1,8 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useCallback } from 'react';
-import { getHistoryFolders, getHistoryTickets, updateBooking, deleteBooking, uploadPdf } from '../services/api';
+import { getHistoryFolders, getHistoryTickets, updateBooking, deleteBooking, uploadPdf, getBookings } from '../services/api';
 import { toast } from '../components/Toast';
-import AutoPdfDropzone from '../components/AutoPdfDropzone';
+import SendButton from '../components/SendButton';
 import {
   FiCalendar,
   FiDollarSign,
@@ -19,6 +19,10 @@ import {
   FiChevronDown,
   FiChevronUp,
   FiClipboard,
+  FiFileText,
+  FiTrash2,
+  FiLink,
+  FiAlertCircle
 } from 'react-icons/fi';
 import { LuHistory } from 'react-icons/lu';
 import { HiOutlineDocumentReport, HiTrendingUp } from 'react-icons/hi';
@@ -64,6 +68,33 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
+  // Flat tickets for Sent sub-section
+  const [flatTickets, setFlatTickets] = useState([]);
+  const [flatLoading, setFlatLoading] = useState(false);
+
+  const fetchFlatTickets = useCallback(async () => {
+    setFlatLoading(true);
+    try {
+      const params = {
+        subSection: 'weekly',
+        sort,
+        searchQuery,
+        ticketFilter: 'sent',
+        dateFilter
+      };
+      if (dateFilter === 'custom') {
+        params.startDate = customStart;
+        params.endDate = customEnd;
+      }
+      const { data } = await getHistoryTickets(params);
+      setFlatTickets(data || []);
+    } catch (err) {
+      toast(err.response?.data?.message || 'Failed to load tickets', 'error');
+    } finally {
+      setFlatLoading(false);
+    }
+  }, [sort, searchQuery, dateFilter, customStart, customEnd]);
+
   const fetchFolders = useCallback(async () => {
     setLoading(true);
     setExpandedFolders({});
@@ -99,8 +130,12 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
   }, [subSection, dateFilter, customStart, customEnd, searchQuery, sort, ticketFilter]);
 
   useEffect(() => {
-    fetchFolders();
-  }, [fetchFolders]);
+    if (subSection === 'weekly' && ticketFilter === 'sent') {
+      fetchFlatTickets();
+    } else {
+      fetchFolders();
+    }
+  }, [subSection, ticketFilter, fetchFolders, fetchFlatTickets]);
 
   // Direct tickets search effect (debounce)
   useEffect(() => {
@@ -169,9 +204,6 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
     }
   };
 
-  const handleAutoUploaded = () => {
-    fetchFolders();
-  };
 
   // ── Ticket Detail Actions ──
   const handlePdfUpload = async (e) => {
@@ -185,7 +217,6 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
     const toastId = toast.loading ? toast.loading('Uploading PDF...') : null;
     try {
       const { data } = await uploadPdf(formData);
-      // Construct updated ticket object
       const updatedTicket = {
         ...selectedTicket,
         pdfUrl: data.booking.pdfUrl || data.booking.localPdfUrl,
@@ -203,10 +234,15 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
         }));
       }
       setSearchResults((prev) => prev.map((t) => (t._id === selectedTicket._id ? updatedTicket : t)));
+      setFlatTickets((prev) => prev.map((t) => (t._id === selectedTicket._id ? updatedTicket : t)));
 
       if (toastId) toast.dismiss(toastId);
       toast.success('PDF uploaded successfully!');
-      fetchFolders();
+      if (ticketFilter === 'sent') {
+        fetchFlatTickets();
+      } else {
+        fetchFolders();
+      }
     } catch (err) {
       if (toastId) toast.dismiss(toastId);
       toast.error(err.response?.data?.message || 'Failed to upload PDF');
@@ -229,9 +265,14 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
         }));
       }
       setSearchResults((prev) => prev.filter((t) => t._id !== selectedTicket._id));
+      setFlatTickets((prev) => prev.filter((t) => t._id !== selectedTicket._id));
 
       setSelectedTicket(null);
-      fetchFolders();
+      if (ticketFilter === 'sent') {
+        fetchFlatTickets();
+      } else {
+        fetchFolders();
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to delete ticket');
     }
@@ -251,9 +292,14 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
         }));
       }
       setSearchResults((prev) => prev.map((t) => (t._id === data._id ? data : t)));
+      setFlatTickets((prev) => prev.map((t) => (t._id === data._id ? data : t)));
 
       toast.success('Status updated successfully!');
-      fetchFolders();
+      if (ticketFilter === 'sent') {
+        fetchFlatTickets();
+      } else {
+        fetchFolders();
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update status');
     }
@@ -479,12 +525,57 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
         </>
       )}
 
-      {subSection === 'weekly' && (
-        <AutoPdfDropzone onUploadSuccess={handleAutoUploaded} />
-      )}
+      {subSection === 'weekly' && ticketFilter === 'sent' ? (
+        <div className="sent-tickets-two-col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
+          {/* Remind Column */}
+          <div className="sent-column">
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1rem', color: '#f0a500', textTransform: 'uppercase', borderBottom: '2px solid #f0a500', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+              <FiBell /> Remind Queue ({flatTickets.filter(t => !t.pdfSent).length})
+            </h3>
+            {flatLoading ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}><FiActivity className="icon-spin" /> Loading...</div>
+            ) : flatTickets.filter(t => !t.pdfSent).length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', border: '1px dashed var(--border)', borderRadius: '8px' }}>No tickets in remind queue.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {flatTickets.filter(t => !t.pdfSent).map(t => (
+                  <div key={t._id} className="history-ticket-card" onClick={() => setSelectedTicket(t)} style={{ borderLeft: '3px solid #f0a500', cursor: 'pointer' }}>
+                    <div className="ticket-card-name">{t.member1}{t.member2 ? ` & ${t.member2}` : ''}</div>
+                    <div className="ticket-card-meta">
+                      <span><FiCalendar /> {formatDateStr(t.visitDate)}</span>
+                      <span><FiClock /> {t.slotTime || '—'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
-      {/* Main Content Area: Search Mode vs. Week Group Mode */}
-      {searchQuery.trim() !== '' ? (
+          {/* Sent Column */}
+          <div className="sent-column">
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1rem', color: '#22c55e', textTransform: 'uppercase', borderBottom: '2px solid #22c55e', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+              <FiSend /> Sent ({flatTickets.filter(t => t.pdfSent).length})
+            </h3>
+            {flatLoading ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}><FiActivity className="icon-spin" /> Loading...</div>
+            ) : flatTickets.filter(t => t.pdfSent).length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', border: '1px dashed var(--border)', borderRadius: '8px' }}>No sent tickets.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {flatTickets.filter(t => t.pdfSent).map(t => (
+                  <div key={t._id} className="history-ticket-card" onClick={() => setSelectedTicket(t)} style={{ borderLeft: '3px solid #22c55e', cursor: 'pointer' }}>
+                    <div className="ticket-card-name">{t.member1}{t.member2 ? ` & ${t.member2}` : ''}</div>
+                    <div className="ticket-card-meta">
+                      <span><FiCalendar /> {formatDateStr(t.visitDate)}</span>
+                      <span><FiClock /> {t.slotTime || '—'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : searchQuery.trim() !== '' ? (
         // ── Direct Search Result View ──
         <div style={{ marginTop: '1rem' }}>
           <h3 style={{ fontSize: '1.05rem', color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '1rem', letterSpacing: '1px' }}>
@@ -646,7 +737,7 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
                 <span className="history-modal-value">{selectedTicket.member2 || '—'}</span>
               </div>
               <div className="history-modal-row">
-                <span className="history-modal-label">Booking Date:</span>
+                <span className="history-modal-label">Booked Date:</span>
                 <span className="history-modal-value">{formatDateStr(selectedTicket.bookingDate)}</span>
               </div>
               <div className="history-modal-row">
@@ -662,6 +753,10 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
                 <span className="history-modal-value">{selectedTicket.slotTime || '—'}</span>
               </div>
               <div className="history-modal-row">
+                <span className="history-modal-label">Payment Type:</span>
+                <span className="history-modal-value" style={{ textTransform: 'capitalize' }}>{selectedTicket.paymentType || '—'}</span>
+              </div>
+              <div className="history-modal-row">
                 <span className="history-modal-label">Paid Status:</span>
                 <span className="history-modal-value">{selectedTicket.paid ? 'Paid' : 'Unpaid'}</span>
               </div>
@@ -672,36 +767,36 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
               <div className="history-modal-row">
                 <span className="history-modal-label">PDF Status:</span>
                 <span className="history-modal-value">
-                  {selectedTicket.pdfUrl ? (
-                    <button 
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (window.innerWidth >= 768) {
-                          window.open(selectedTicket.pdfUrl, '_blank');
-                        } else {
-                          setMobilePdfUrl(selectedTicket.pdfUrl);
-                        }
-                      }}
-                      style={{ 
-                        background: 'none', 
-                        border: 'none', 
-                        padding: 0, 
-                        color: 'var(--primary)', 
-                        textDecoration: 'underline', 
-                        cursor: 'pointer', 
-                        font: 'inherit' 
-                      }}
-                    >
-                      View PDF
-                    </button>
+                  {selectedTicket.pdfUrl || selectedTicket.pdfUploaded ? (
+                    <span style={{ color: 'var(--success)', fontWeight: 700 }}>Uploaded</span>
                   ) : (
-                    <span style={{ color: 'var(--danger)' }}>Not Uploaded</span>
+                    <span style={{ color: 'var(--danger)', fontWeight: 700 }}>Not Uploaded</span>
                   )}
                 </span>
               </div>
 
               {/* Action Buttons Row */}
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
+                {ticketFilter === 'sent' && (
+                  <div style={{ flex: '1 1 100%', display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
+                    <SendButton
+                      booking={selectedTicket}
+                      onSent={(updated) => {
+                        setSelectedTicket(updated);
+                        setFlatTickets((prev) => prev.map((t) => (t._id === updated._id ? updated : t)));
+                        const folderId = updated.createdAt?.split('T')[0];
+                        if (folderId) {
+                          setFolderTickets((prev) => ({
+                            ...prev,
+                            [folderId]: prev[folderId]?.map((t) => (t._id === updated._id ? updated : t)) || [],
+                          }));
+                        }
+                        setSearchResults((prev) => prev.map((t) => (t._id === updated._id ? updated : t)));
+                        fetchFolders();
+                      }}
+                    />
+                  </div>
+                )}
                 {/* File input helper */}
                 <input 
                   type="file" 
@@ -711,85 +806,93 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
                   onChange={handlePdfUpload} 
                 />
 
-                {/* Section Specific Action buttons */}
-                {subSection === 'weekly' && (
+                {/* PDF Actions */}
+                {selectedTicket.pdfUrl ? (
                   <>
-                    {!selectedTicket.pdfUrl ? (
-                      <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
-                        Upload PDF
-                      </button>
-                    ) : (
-                      <button className="btn btn-warning btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
-                        Replace PDF
-                      </button>
-                    )}
-                    <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={handleTicketDelete}>
-                      Delete Ticket
+                    <button 
+                      className="btn btn-outline btn-sm" 
+                      style={{ flex: '1 1 calc(33% - 0.5rem)' }} 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (window.innerWidth >= 768) {
+                          window.open(selectedTicket.pdfUrl, '_blank');
+                        } else {
+                          setMobilePdfUrl(selectedTicket.pdfUrl);
+                        }
+                      }}
+                    >
+                      View PDF
+                    </button>
+                    <a 
+                      href={selectedTicket.pdfUrl} 
+                      download 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="btn btn-outline btn-sm" 
+                      style={{ flex: '1 1 calc(33% - 0.5rem)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      Download PDF
+                    </a>
+                    <button 
+                      className="btn btn-warning btn-sm" 
+                      style={{ flex: '1 1 calc(33% - 0.5rem)' }} 
+                      onClick={() => document.getElementById('modal-pdf-upload').click()}
+                    >
+                      Replace PDF
                     </button>
                   </>
+                ) : (
+                  <button 
+                    className="btn btn-primary btn-sm" 
+                    style={{ flex: '1 1 100%' }} 
+                    onClick={() => document.getElementById('modal-pdf-upload').click()}
+                  >
+                    Upload PDF
+                  </button>
                 )}
 
+                {/* Section Specific Action buttons */}
                 {subSection === 'reports' && (
                   <>
-                    {!selectedTicket.pdfUrl ? (
-                      <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
-                        Upload PDF
-                      </button>
-                    ) : (
-                      <button className="btn btn-warning btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
-                        Replace PDF
-                      </button>
-                    )}
                     <button 
                       className={`btn btn-sm ${selectedTicket.paid ? 'btn-outline' : 'btn-success'}`} 
-                      style={{ flex: 1 }} 
+                      style={{ flex: '1 1 calc(50% - 0.5rem)' }} 
                       onClick={() => handleStatusToggle('paid', selectedTicket.paid)}
                     >
                       {selectedTicket.paid ? 'Mark Unpaid' : 'Mark Paid'}
                     </button>
                     <button 
                       className={`btn btn-sm ${selectedTicket.completed ? 'btn-outline' : 'btn-success'}`} 
-                      style={{ flex: 1 }} 
+                      style={{ flex: '1 1 calc(50% - 0.5rem)' }} 
                       onClick={() => handleStatusToggle('completed', selectedTicket.completed)}
                     >
                       {selectedTicket.completed ? 'Mark Not Completed' : 'Mark Completed'}
-                    </button>
-                    <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={handleTicketDelete}>
-                      Delete Ticket
                     </button>
                   </>
                 )}
 
                 {subSection === 'further' && (
                   <>
-                    {!selectedTicket.pdfUrl ? (
-                      <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
-                        Upload PDF
-                      </button>
-                    ) : (
-                      <button className="btn btn-warning btn-sm" style={{ flex: 1 }} onClick={() => document.getElementById('modal-pdf-upload').click()}>
-                        Replace PDF
-                      </button>
-                    )}
                     <button 
                       className={`btn btn-sm ${selectedTicket.paid ? 'btn-outline' : 'btn-success'}`}
-                      style={{ flex: 1 }} 
+                      style={{ flex: '1 1 calc(50% - 0.5rem)' }} 
                       onClick={() => handleStatusToggle('paid', selectedTicket.paid)}
                     >
                       Change Paid Status
                     </button>
                     <button 
                       className={`btn btn-sm ${selectedTicket.completed ? 'btn-outline' : 'btn-success'}`}
-                      style={{ flex: 1 }} 
+                      style={{ flex: '1 1 calc(50% - 0.5rem)' }} 
                       onClick={() => handleStatusToggle('completed', selectedTicket.completed)}
                     >
                       Change Completed Status
                     </button>
-                    <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={handleTicketDelete}>
-                      Delete Ticket
-                    </button>
                   </>
                 )}
+
+                <button className="btn btn-danger btn-sm" style={{ flex: '1 1 100%' }} onClick={handleTicketDelete}>
+                  Delete Ticket
+                </button>
               </div>
             </div>
           </div>

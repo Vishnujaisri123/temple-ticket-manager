@@ -45,6 +45,8 @@ const getWeeklyStats = async (adminId) => {
     totalProfit: 0,
     phonepeAmount: 0,
     cashAmount: 0,
+    phonepeCount: 0,
+    cashCount: 0,
     paidCount: 0,
     sentCount: 0,
     completedCount: 0,
@@ -61,8 +63,14 @@ const getWeeklyStats = async (adminId) => {
     if (b.pdfSent) stats.sentCount++;
     if (b.completed) stats.completedCount++;
 
-    if (b.paymentMethod === 'phonepe') stats.phonepeAmount += amt;
-    if (b.paymentMethod === 'cash') stats.cashAmount += amt;
+    if (b.paymentType === 'phonepe') {
+      stats.phonepeAmount += amt;
+      stats.phonepeCount++;
+    }
+    if (b.paymentType === 'cash') {
+      stats.cashAmount += amt;
+      stats.cashCount++;
+    }
   });
 
   return stats;

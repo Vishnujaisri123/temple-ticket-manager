@@ -31,12 +31,12 @@ const isReminderDue = (visitDate) => {
 
 const PaymentSelect = ({ booking, onUpdate }) => (
   <select
-    value={booking.paymentMethod || ''}
-    onChange={(e) => onUpdate(booking, 'paymentMethod', e.target.value)}
+    value={booking.paymentType || ''}
+    onChange={(e) => onUpdate(booking, 'paymentType', e.target.value)}
     style={{
       border: '1px solid var(--border)', borderRadius: '4px',
       padding: '0.25rem 0.4rem', fontSize: '0.78rem',
-      background: booking.paymentMethod === 'phonepe' ? '#e8f4fd' : booking.paymentMethod === 'cash' ? '#e8f5e9' : '#fff',
+      background: booking.paymentType === 'phonepe' ? '#e8f4fd' : booking.paymentType === 'cash' ? '#e8f5e9' : '#fff',
       color: 'var(--text)', cursor: 'pointer', width: '100%',
     }}
   >
@@ -54,24 +54,48 @@ const BookingTable = ({ bookings, setBookings }) => {
     setEditing((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
   };
 
-  const saveField = useCallback(async (booking, field, value) => {
+  const saveFields = useCallback(async (booking, updates) => {
     try {
-      const { data } = await updateBooking(booking._id, { [field]: value });
+      const { data } = await updateBooking(booking._id, updates);
       setBookings((prev) => prev.map((b) => (b._id === data._id ? data : b)));
+      return data;
     } catch {
       toast('Failed to update', 'error');
+      return null;
     }
   }, [setBookings]);
 
-  const handleCheckbox = (booking, field) => {
-    const newVal = !booking[field];
-    const updated = { ...booking, [field]: newVal };
-    saveField(booking, field, newVal);
+  const saveField = useCallback((booking, field, value) => {
+    saveFields(booking, { [field]: value });
+  }, [saveFields]);
+
+  const handleDoneClick = async (booking) => {
+    const newVal = !booking.completed;
+    const updated = { ...booking, completed: newVal };
     if (updated.completed && updated.paid) {
       setBookings((prev) => prev.filter((b) => b._id !== booking._id));
+      toast('Booking completed and moved to History');
     } else {
       setBookings((prev) => prev.map((b) => (b._id === booking._id ? updated : b)));
     }
+    await saveFields(booking, { completed: newVal });
+  };
+
+  const handlePaidClick = async (booking) => {
+    const newVal = !booking.paid;
+    if (newVal && !booking.paymentType) {
+      toast('Please select payment type before marking as paid.', 'error');
+      return;
+    }
+    const updatedPaymentType = newVal ? booking.paymentType : '';
+    const updated = { ...booking, paid: newVal, paymentType: updatedPaymentType };
+    if (updated.completed && updated.paid) {
+      setBookings((prev) => prev.filter((b) => b._id !== booking._id));
+      toast('Booking completed and moved to History');
+    } else {
+      setBookings((prev) => prev.map((b) => (b._id === booking._id ? updated : b)));
+    }
+    await saveFields(booking, { paid: newVal, paymentType: updatedPaymentType });
   };
 
   const handleBlur = (booking, field) => {
@@ -105,23 +129,6 @@ const BookingTable = ({ bookings, setBookings }) => {
   const onSent = (updated) => setBookings((prev) => prev.map((x) => x._id === updated._id ? updated : x));
   const onRemove = (id) => setBookings((prev) => prev.filter((x) => x._id !== id));
 
-  const handleBulkSend = () => {
-    const withPdf = bookings.filter((b) => b.pdfUrl && !b.pdfSent);
-    if (!withPdf.length) { toast('No unsent bookings with PDF', 'warning'); return; }
-    withPdf.forEach((b, i) => {
-      setTimeout(() => {
-        let phone = b.phone.replace(/\D/g, '');
-        if (!phone.startsWith('91')) phone = '91' + phone;
-        const visitDate = new Date(b.visitDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
-        const msg = `🙏 Namaskaram ${b.member1}!\n\nYour temple ticket is ready.\n📅 Visit Date: *${visitDate}*\n📄 Ticket: ${b.pdfUrl}\n\nJai Govinda! 🙏`;
-        const a = document.createElement('a');
-        a.href = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(msg)}`;
-        a.target = '_blank'; a.rel = 'noopener noreferrer';
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      }, i * 800);
-    });
-  };
-
   if (!bookings.length) {
     return (
       <div className="table-wrapper">
@@ -147,9 +154,6 @@ const BookingTable = ({ bookings, setBookings }) => {
       )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
         <PrintButton bookings={bookings} title="Dashboard Bookings" />
-        <button className="btn btn-primary btn-sm" onClick={handleBulkSend} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-          <FiSend /> Bulk Send
-        </button>
       </div>
 
       {/* ── Desktop Table ── */}
@@ -158,10 +162,9 @@ const BookingTable = ({ bookings, setBookings }) => {
           <table>
             <thead>
               <tr>
-                <th>#</th><th>Bookers Date</th><th>Booked Date</th><th>Phone</th>
+                <th>#</th><th>Booked Date</th><th>Visit Date</th><th>Phone</th>
                 <th>Gothram</th><th>Member 1</th><th>Member 2</th>
                 <th><FiCheckCircle style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} /> Done</th>
-                <th><FiSend style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} /> Sent</th>
                 <th><FiDollarSign style={{ marginRight: '0.2rem', verticalAlign: 'middle' }} /> Paid</th>
                 <th>Payment</th><th>Actions</th>
               </tr>
@@ -241,14 +244,95 @@ const BookingTable = ({ bookings, setBookings }) => {
                         onBlur={() => handleBlur(b, 'member2')} placeholder="—" />
                     </div>
                   </td>
-                  <td className="checkbox-cell"><input type="checkbox" checked={b.completed} onChange={() => handleCheckbox(b, 'completed')} /></td>
-                  <td className="checkbox-cell"><input type="checkbox" checked={b.pdfSent} onChange={() => handleCheckbox(b, 'pdfSent')} /></td>
-                  <td className="checkbox-cell"><input type="checkbox" checked={b.paid} onChange={() => handleCheckbox(b, 'paid')} /></td>
+                  <td>
+                    <button
+                      onClick={() => handleDoneClick(b)}
+                      style={b.completed ? {
+                        background: 'rgba(34, 197, 94, 0.2)',
+                        color: '#22c55e',
+                        border: '1px solid #22c55e',
+                        boxShadow: '0 0 10px rgba(34, 197, 94, 0.5)',
+                        fontSize: '0.72rem',
+                        fontWeight: 'bold',
+                        padding: '0.35rem 0.5rem',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        width: '100%',
+                        textTransform: 'uppercase',
+                        transition: 'all 0.2s ease',
+                      } : {
+                        background: '#7f1d1d',
+                        color: '#fecaca',
+                        border: '1px solid #b91c1c',
+                        fontSize: '0.72rem',
+                        fontWeight: 'bold',
+                        padding: '0.35rem 0.5rem',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        width: '100%',
+                        textTransform: 'uppercase',
+                        transition: 'all 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.05)';
+                        if (b.completed) e.currentTarget.style.boxShadow = '0 0 15px rgba(34, 197, 94, 0.8)';
+                        else e.currentTarget.style.boxShadow = '0 0 10px rgba(239, 68, 68, 0.4)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)';
+                        if (b.completed) e.currentTarget.style.boxShadow = '0 0 10px rgba(34, 197, 94, 0.5)';
+                        else e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      DONE
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      onClick={() => handlePaidClick(b)}
+                      style={b.paid ? {
+                        background: 'rgba(34, 197, 94, 0.2)',
+                        color: '#22c55e',
+                        border: '1px solid #22c55e',
+                        boxShadow: '0 0 10px rgba(34, 197, 94, 0.5)',
+                        fontSize: '0.72rem',
+                        fontWeight: 'bold',
+                        padding: '0.35rem 0.5rem',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        width: '100%',
+                        textTransform: 'uppercase',
+                        transition: 'all 0.2s ease',
+                      } : {
+                        background: '#7f1d1d',
+                        color: '#fecaca',
+                        border: '1px solid #b91c1c',
+                        fontSize: '0.72rem',
+                        fontWeight: 'bold',
+                        padding: '0.35rem 0.5rem',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        width: '100%',
+                        textTransform: 'uppercase',
+                        transition: 'all 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.05)';
+                        if (b.paid) e.currentTarget.style.boxShadow = '0 0 15px rgba(34, 197, 94, 0.8)';
+                        else e.currentTarget.style.boxShadow = '0 0 10px rgba(239, 68, 68, 0.4)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)';
+                        if (b.paid) e.currentTarget.style.boxShadow = '0 0 10px rgba(34, 197, 94, 0.5)';
+                        else e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      PAID
+                    </button>
+                  </td>
                   <td><PaymentSelect booking={b} onUpdate={(bk, field, val) => { saveField(bk, field, val); setBookings((prev) => prev.map((x) => x._id === bk._id ? { ...x, [field]: val } : x)); }} /></td>
                   <td>
                     <div className="row-actions">
-                      <SendButton booking={b} onSent={onSent} onRemoveFromDashboard={onRemove} />
-                      <SendButton booking={b} isReminder onSent={onSent} onRemoveFromDashboard={onRemove} />
                       <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(b._id)} title="Delete"><FiTrash2 /></button>
                     </div>
                   </td>
@@ -269,7 +353,7 @@ const BookingTable = ({ bookings, setBookings }) => {
                 <div>
                   <div className="card-name">{b.member1}{b.member2 ? ` & ${b.member2}` : ''}</div>
                   <div className="card-date" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', flexWrap: 'wrap' }}>
-                    <FiCalendar /> Booked: {fmt(b.visitDate)} {b.slotTime && <>| <FiClock /> {b.slotTime}</>}
+                    <FiCalendar /> Visit: {fmt(b.visitDate)} {b.slotTime && <>| <FiClock /> {b.slotTime}</>}
                   </div>
                 </div>
               </div>
@@ -303,7 +387,7 @@ const BookingTable = ({ bookings, setBookings }) => {
                 <span className="card-value">{b.gothram || '—'}</span>
               </div>
               <div className="card-row">
-                <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiCalendar /> Bookers Date</span>
+                <span className="card-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}><FiCalendar /> Booked Date</span>
                 <span className="card-value">{fmt(b.bookingDate)}</span>
               </div>
               <div className="card-row">
@@ -337,25 +421,66 @@ const BookingTable = ({ bookings, setBookings }) => {
                   <option value="9am-10am">9am-10am</option>
                 </select>
               </div>
-              <div className="card-checkboxes">
-                <label className="card-checkbox-item" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
-                  <input type="checkbox" checked={b.completed} onChange={() => handleCheckbox(b, 'completed')} />
-                  <FiCheckCircle style={{ color: 'var(--success)' }} /> Done
-                </label>
-                <label className="card-checkbox-item" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
-                  <input type="checkbox" checked={b.paid} onChange={() => handleCheckbox(b, 'paid')} />
-                  <FiDollarSign style={{ color: 'var(--success)' }} /> Paid
-                </label>
-                <label className="card-checkbox-item" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
-                  <input type="checkbox" checked={b.pdfSent} onChange={() => handleCheckbox(b, 'pdfSent')} />
-                  <FiSend style={{ color: 'var(--primary)' }} /> Sent
-                </label>
+              <div className="card-checkboxes" style={{ display: 'flex', gap: '0.5rem', marginTop: '0.8rem' }}>
+                <button
+                  onClick={() => handleDoneClick(b)}
+                  style={b.completed ? {
+                    background: 'rgba(34, 197, 94, 0.2)',
+                    color: '#22c55e',
+                    border: '1px solid #22c55e',
+                    boxShadow: '0 0 10px rgba(34, 197, 94, 0.5)',
+                    fontSize: '0.75rem',
+                    fontWeight: 'bold',
+                    padding: '0.4rem 0.75rem',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    flex: 1,
+                    textTransform: 'uppercase',
+                  } : {
+                    background: '#7f1d1d',
+                    color: '#fecaca',
+                    border: '1px solid #b91c1c',
+                    fontSize: '0.75rem',
+                    fontWeight: 'bold',
+                    padding: '0.4rem 0.75rem',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    flex: 1,
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  DONE
+                </button>
+                <button
+                  onClick={() => handlePaidClick(b)}
+                  style={b.paid ? {
+                    background: 'rgba(34, 197, 94, 0.2)',
+                    color: '#22c55e',
+                    border: '1px solid #22c55e',
+                    boxShadow: '0 0 10px rgba(34, 197, 94, 0.5)',
+                    fontSize: '0.75rem',
+                    fontWeight: 'bold',
+                    padding: '0.4rem 0.75rem',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    flex: 1,
+                    textTransform: 'uppercase',
+                  } : {
+                    background: '#7f1d1d',
+                    color: '#fecaca',
+                    border: '1px solid #b91c1c',
+                    fontSize: '0.75rem',
+                    fontWeight: 'bold',
+                    padding: '0.4rem 0.75rem',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    flex: 1,
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  PAID
+                </button>
               </div>
-
-            </div>
-            <div className="card-actions">
-              <SendButton booking={b} onSent={onSent} onRemoveFromDashboard={onRemove} />
-              <SendButton booking={b} isReminder onSent={onSent} onRemoveFromDashboard={onRemove} />
             </div>
           </div>
         ))}

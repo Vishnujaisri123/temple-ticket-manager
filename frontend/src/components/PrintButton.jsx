@@ -14,7 +14,7 @@ const PrintButton = ({ bookings, title = 'All Bookings' }) => {
         <td>${b.member1}</td>
         <td>${b.member2 || '—'}</td>
         <td style="text-align:center">${b.paid ? 'Yes' : 'No'}</td>
-        <td style="text-align:center">${b.paymentMethod === 'phonepe' ? 'PhonePe' : b.paymentMethod === 'cash' ? 'Cash' : '—'}</td>
+        <td style="text-align:center">${b.paymentType === 'phonepe' ? 'PhonePe' : b.paymentType === 'cash' ? 'Cash' : '—'}</td>
         <td style="text-align:center">${b.completed ? 'Yes' : 'No'}</td>
         <td style="text-align:center">${b.pdfSent ? 'Yes' : 'No'}</td>
       `;
@@ -63,8 +63,8 @@ const PrintButton = ({ bookings, title = 'All Bookings' }) => {
           <thead>
             <tr>
               <th>#</th>
-              <th>Bookers Date</th>
               <th>Booked Date</th>
+              <th>Visit Date</th>
               <th>Phone</th>
               <th>Gothram</th>
               <th>Member 1</th>

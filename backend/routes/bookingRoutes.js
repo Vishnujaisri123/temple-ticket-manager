@@ -3,7 +3,7 @@ const router = express.Router();
 const protect = require('../middleware/auth');
 const { upload } = require('../config/cloudinary');
 const {
-  getAll, create, update, remove, uploadPdf, uploadAutoPdf, getReminderBookings, getTotalCount, getStats, claimOrphans,
+  getAll, create, update, remove, uploadPdf, getReminderBookings, getTotalCount, getStats, claimOrphans,
   getHistoryFolders, getHistoryTickets, getAutoDeletedLogs,
 } = require('../controllers/bookingController');
 
@@ -22,6 +22,5 @@ router.post('/', create);
 router.put('/:id', update);
 router.delete('/:id', remove);
 router.post('/upload', upload.single('pdf'), uploadPdf);
-router.post('/upload-auto', upload.single('pdf'), uploadAutoPdf);
 
 module.exports = router;

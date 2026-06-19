@@ -31,7 +31,6 @@ export const getStats = () => api.get('/bookings/stats');
 export const updateBooking = (id, data) => api.put(`/bookings/${id}`, data);
 export const deleteBooking = (id) => api.delete(`/bookings/${id}`);
 export const uploadPdf = (formData) => api.post('/bookings/upload', formData);
-export const uploadAutoPdf = (formData) => api.post('/bookings/upload-auto', formData);
 export const claimOrphans = () => api.post('/bookings/claim-orphans');
 export const login = (data) => api.post('/auth/login', data);
 export const seedAdmin = () => api.post('/auth/seed');

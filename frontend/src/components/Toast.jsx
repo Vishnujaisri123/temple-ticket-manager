@@ -22,6 +22,9 @@ export const useToast = () => {
 export const toast = (message, type = 'success') => {
   window.dispatchEvent(new CustomEvent('app-toast', { detail: { message, type } }));
 };
+toast.success = (message) => toast(message, 'success');
+toast.error = (message) => toast(message, 'error');
+toast.warning = (message) => toast(message, 'warning');
 
 export const ToastContainer = ({ toasts }) => (
   <div className="toast-container">

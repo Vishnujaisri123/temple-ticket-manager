@@ -65,11 +65,11 @@ const AddBookingForm = ({ onAdded }) => {
       <form onSubmit={handleSubmit}>
         <div className="booking-form-grid">
           <div className="form-group">
-            <label>Bookers Date</label>
+            <label>Booked Date</label>
             <input type="date" name="bookingDate" value={form.bookingDate} onChange={handleChange} />
           </div>
           <div className="form-group">
-            <label>Booked Date *</label>
+            <label>Visit Date *</label>
             <input type="date" name="visitDate" value={form.visitDate} onChange={handleChange} min={minVisitDate} required />
           </div>
           <div className="form-group">

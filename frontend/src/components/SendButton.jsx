@@ -99,7 +99,7 @@ Jai Govinda! 🙏`;
       style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
     >
       {isReminder ? <FiBell className="icon-pulse" /> : <FiSend className="icon-hover-scale" />}
-      {isReminder ? 'Remind' : 'Send'}
+      {isReminder ? 'Remind' : (booking.pdfSent ? 'Send Again' : 'Send')}
     </button>
   );
 };
