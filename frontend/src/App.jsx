@@ -11,7 +11,7 @@ const AppContent = () => {
     <div className="app-wrapper solo-leveling-theme">
       {/* Sri Venkateswara Swamy Solo Leveling Theme Background System */}
       <div className="deity-background-system">
-        <div className="deity-watermark"></div>
+        <img src="/deity.png" className="deity-watermark" alt="deity" />
         <div className="deity-grid"></div>
         <div className="deity-mist"></div>
         <div className="deity-overlay"></div>

@@ -498,13 +498,25 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
 /* 1. Deity image with blue-purple monochrome style */
 .deity-watermark {
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: 
-    url('/deity.jpg') no-repeat center center / auto 100%,
-    linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);
-  background-blend-mode: luminosity;
-  opacity: 0.12; /* Light watermark visibility (between 8% and 15%) */
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: auto;
+  height: auto;
+  max-width: 90%;
+  max-height: 80%;
+  /* Invert white background to black, and force cyan-blue monochrome glow */
+  filter: invert(100%) sepia(100%) saturate(10000%) hue-rotate(185deg) brightness(0.7) contrast(1.2);
+  mix-blend-mode: screen; /* Makes the inverted black background completely transparent */
+  opacity: 0.12; /* Faint watermark visibility (between 8% and 15%) */
   pointer-events: none;
+  user-select: none;
+}
+
+@media (min-width: 1025px) {
+  .deity-watermark {
+    max-width: 60%;
+    max-height: 60%;
+  }
 }
 
 /* 2. Cyber system grid */
