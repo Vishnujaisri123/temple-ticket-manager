@@ -4,7 +4,7 @@ const protect = require('../middleware/auth');
 const { upload } = require('../config/cloudinary');
 const {
   getAll, create, update, remove, uploadPdf, getReminderBookings, getTotalCount, getStats, claimOrphans,
-  getHistoryFolders, getHistoryTickets, getAutoDeletedLogs,
+  getHistoryFolders, getHistoryTickets, getAutoDeletedLogs, sendWhatsApp
 } = require('../controllers/bookingController');
 
 router.use(protect);
@@ -22,5 +22,6 @@ router.post('/', create);
 router.put('/:id', update);
 router.delete('/:id', remove);
 router.post('/upload', upload.single('pdf'), uploadPdf);
+router.post('/:id/send-whatsapp', sendWhatsApp);
 
 module.exports = router;

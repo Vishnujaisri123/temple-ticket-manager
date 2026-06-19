@@ -592,6 +592,125 @@ const getAutoDeletedLogs = async (req, res) => {
   }
 };
 
+const sendWhatsApp = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    if (!booking.pdfUrl) {
+      return res.status(400).json({ message: 'PDF URL is missing. Upload PDF first.' });
+    }
+
+    // 1. Phone number cleaning: Read phone number and remove country code prefix 91 if present.
+    // Example: 917207202844 -> 7207202844
+    const originalPhone = booking.phone || '';
+    const cleanPhone = (originalPhone.startsWith('91') && originalPhone.length === 12)
+      ? originalPhone.slice(2)
+      : originalPhone;
+    
+    // Store cleaned number temporarily during sending
+    console.log(`[WhatsApp API] Cleaned recipient phone number for sending: ${cleanPhone}`);
+
+    // Prepend 91 for international format required by Meta WhatsApp Cloud API
+    const recipient = '91' + cleanPhone;
+
+    // 2. Build template message text
+    const bookedDate = booking.bookingDate
+      ? new Date(booking.bookingDate).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        })
+      : '—';
+    const timeslot = booking.slotTime || '—';
+
+    const messageText = `Hello ${booking.member1},
+
+Your Sri Venkateswara Swamy Temple booking ticket is ready.
+
+Booked Date:
+${bookedDate}
+
+Timeslot:
+${timeslot}
+
+Please find your ticket attached.
+
+Thank you.`;
+
+    const token = process.env.WHATSAPP_ACCESS_TOKEN;
+    const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+    if (!token || !phoneId) {
+      console.error('[WhatsApp API] Missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID env variables.');
+      booking.deliveryStatus = 'failed';
+      booking.errorMessage = 'WhatsApp credentials not configured on server.';
+      await booking.save();
+      return res.status(500).json({ message: 'WhatsApp API credentials missing.' });
+    }
+
+    // 3. Make request to official Meta WhatsApp API
+    const response = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: recipient,
+        type: 'document',
+        document: {
+          link: booking.pdfUrl,
+          caption: messageText,
+          filename: `Temple_Ticket_${booking.member1.replace(/\s+/g, '_')}.pdf`
+        }
+      })
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      console.error('[WhatsApp API] Meta API responded with error:', responseData);
+      const errMsg = responseData.error?.message || 'Meta API request failed';
+      booking.deliveryStatus = 'failed';
+      booking.errorMessage = errMsg;
+      await booking.save();
+      return res.status(500).json({ message: errMsg, error: responseData.error });
+    }
+
+    // 4. Update status after success
+    const messageId = responseData.messages?.[0]?.id || '';
+    booking.sent = true;
+    booking.sentAt = new Date();
+    booking.deliveryStatus = 'sent';
+    booking.whatsappMessageId = messageId;
+    booking.errorMessage = '';
+    
+    // For backwards compatibility
+    booking.pdfSent = true;
+    
+    await booking.save();
+
+    console.log(`[WhatsApp API] Successfully sent ticket to ${recipient}. Msg ID: ${messageId}`);
+    res.json({ message: 'WhatsApp message sent successfully', booking });
+  } catch (err) {
+    console.error('[WhatsApp API] System error while sending message:', err.message);
+    const booking = await Booking.findById(id).catch(() => null);
+    if (booking) {
+      booking.deliveryStatus = 'failed';
+      booking.errorMessage = err.message;
+      await booking.save();
+    }
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getAll,
   create,
@@ -604,5 +723,6 @@ module.exports = {
   claimOrphans,
   getHistoryFolders,
   getHistoryTickets,
-  getAutoDeletedLogs
+  getAutoDeletedLogs,
+  sendWhatsApp
 };

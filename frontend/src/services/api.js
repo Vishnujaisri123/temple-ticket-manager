@@ -32,5 +32,6 @@ export const updateBooking = (id, data) => api.put(`/bookings/${id}`, data);
 export const deleteBooking = (id) => api.delete(`/bookings/${id}`);
 export const uploadPdf = (formData) => api.post('/bookings/upload', formData);
 export const claimOrphans = () => api.post('/bookings/claim-orphans');
+export const sendWhatsApp = (id) => api.post(`/bookings/${id}/send-whatsapp`);
 export const login = (data) => api.post('/auth/login', data);
 export const seedAdmin = () => api.post('/auth/seed');

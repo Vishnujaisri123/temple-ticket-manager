@@ -1,8 +1,8 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useCallback } from 'react';
-import { getHistoryFolders, getHistoryTickets, updateBooking, deleteBooking, uploadPdf, getBookings } from '../services/api';
+import { getHistoryFolders, getHistoryTickets, updateBooking, deleteBooking, uploadPdf, getBookings, sendWhatsApp } from '../services/api';
 import { toast } from '../components/Toast';
-import SendButton from '../components/SendButton';
+
 import {
   FiCalendar,
   FiDollarSign,
@@ -72,6 +72,16 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
   // Flat tickets for Sent sub-section
   const [flatTickets, setFlatTickets] = useState([]);
   const [flatLoading, setFlatLoading] = useState(false);
+
+  // Send All Progress States
+  const [isSendingAll, setIsSendingAll] = useState(false);
+  const [sendAllProgress, setSendAllProgress] = useState({
+    current: 0,
+    total: 0,
+    success: 0,
+    failed: 0,
+    currentName: ''
+  });
 
   const fetchFlatTickets = useCallback(async () => {
     setFlatLoading(true);
@@ -206,6 +216,134 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
   };
 
 
+  // ── WhatsApp Action Handlers ──
+  const handleSendWhatsApp = async (ticketId) => {
+    const toastId = toast.loading ? toast.loading('Sending ticket via WhatsApp...') : null;
+    try {
+      const { data } = await sendWhatsApp(ticketId);
+      setSelectedTicket(data);
+
+      // Update cached lists
+      const folderId = data.createdAt?.split('T')[0];
+      if (folderId) {
+        setFolderTickets((prev) => ({
+          ...prev,
+          [folderId]: prev[folderId]?.map((t) => (t._id === data._id ? data : t)) || [],
+        }));
+      }
+      setSearchResults((prev) => prev.map((t) => (t._id === data._id ? data : t)));
+      setFlatTickets((prev) => prev.map((t) => (t._id === data._id ? data : t)));
+
+      if (toastId) toast.dismiss(toastId);
+      toast.success('Ticket sent successfully via WhatsApp!');
+      if (ticketFilter === 'sent') {
+        fetchFlatTickets();
+      } else {
+        fetchFolders();
+      }
+    } catch (err) {
+      if (toastId) toast.dismiss(toastId);
+      const errMsg = err.response?.data?.message || 'Failed to send WhatsApp';
+      toast.error(errMsg);
+
+      // Update local state with failure
+      const failedTicket = {
+        ...selectedTicket,
+        deliveryStatus: 'failed',
+        errorMessage: errMsg
+      };
+      setSelectedTicket(failedTicket);
+      setFlatTickets((prev) => prev.map((t) => (t._id === ticketId ? failedTicket : t)));
+
+      const folderId = selectedTicket.createdAt?.split('T')[0];
+      if (folderId) {
+        setFolderTickets((prev) => ({
+          ...prev,
+          [folderId]: prev[folderId]?.map((t) => (t._id === ticketId ? failedTicket : t)) || [],
+        }));
+      }
+      setSearchResults((prev) => prev.map((t) => (t._id === ticketId ? failedTicket : t)));
+    }
+  };
+
+  const handleSendAll = async () => {
+    const unsentTickets = flatTickets.filter(t => !t.sent);
+    if (unsentTickets.length === 0) return;
+
+    if (!window.confirm(`Are you sure you want to send all ${unsentTickets.length} unsent tickets via WhatsApp?`)) {
+      return;
+    }
+
+    setIsSendingAll(true);
+    setSendAllProgress({
+      current: 0,
+      total: unsentTickets.length,
+      success: 0,
+      failed: 0,
+      currentName: ''
+    });
+
+    let successCount = 0;
+    let failedCount = 0;
+
+    for (let i = 0; i < unsentTickets.length; i++) {
+      const ticket = unsentTickets[i];
+      setSendAllProgress(prev => ({
+        ...prev,
+        current: i + 1,
+        currentName: ticket.member1 + (ticket.member2 ? ` & ${ticket.member2}` : '')
+      }));
+
+      try {
+        const { data } = await sendWhatsApp(ticket._id);
+        successCount++;
+
+        setFlatTickets(prev => prev.map(t => t._id === ticket._id ? data : t));
+
+        const folderId = ticket.createdAt?.split('T')[0];
+        if (folderId) {
+          setFolderTickets(prev => ({
+            ...prev,
+            [folderId]: prev[folderId]?.map(t => t._id === ticket._id ? data : t) || []
+          }));
+        }
+
+        setSearchResults(prev => prev.map(t => t._id === ticket._id ? data : t));
+      } catch (err) {
+        console.error(`Failed to send WhatsApp for ticket ${ticket._id}:`, err);
+        failedCount++;
+        const failedTicket = {
+          ...ticket,
+          deliveryStatus: 'failed',
+          errorMessage: err.response?.data?.message || err.message || 'WhatsApp sending failed.'
+        };
+        setFlatTickets(prev => prev.map(t => t._id === ticket._id ? failedTicket : t));
+        const folderId = ticket.createdAt?.split('T')[0];
+        if (folderId) {
+          setFolderTickets(prev => ({
+            ...prev,
+            [folderId]: prev[folderId]?.map(t => t._id === ticket._id ? failedTicket : t) || []
+          }));
+        }
+        setSearchResults(prev => prev.map(t => t._id === ticket._id ? failedTicket : t));
+      }
+
+      setSendAllProgress(prev => ({
+        ...prev,
+        success: successCount,
+        failed: failedCount
+      }));
+    }
+
+    toast.success(`Send All completed! Success: ${successCount}, Failed: ${failedCount}`);
+
+    if (ticketFilter === 'sent') {
+      fetchFlatTickets();
+    } else {
+      fetchFolders();
+    }
+  };
+
   // ── Ticket Detail Actions ──
   const handlePdfUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -222,7 +360,11 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
         ...selectedTicket,
         pdfUrl: data.booking.pdfUrl || data.booking.localPdfUrl,
         localPdfUrl: data.booking.localPdfUrl,
-        pdfSent: data.booking.pdfSent,
+        sent: data.booking.sent,
+        deliveryStatus: data.booking.deliveryStatus,
+        whatsappMessageId: data.booking.whatsappMessageId,
+        errorMessage: data.booking.errorMessage,
+        sentAt: data.booking.sentAt,
       };
       setSelectedTicket(updatedTicket);
 
@@ -528,19 +670,38 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
 
       {subSection === 'weekly' && ticketFilter === 'sent' ? (
         <div className="sent-tickets-two-col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
-          {/* Remind Column */}
+          {/* Not Sent Column */}
           <div className="sent-column">
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1rem', color: '#f0a500', textTransform: 'uppercase', borderBottom: '2px solid #f0a500', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-              <FiBell /> Remind Queue ({flatTickets.filter(t => !t.pdfSent).length})
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #D97706', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1rem', color: '#D97706', textTransform: 'uppercase', margin: 0, textShadow: '0 0 8px rgba(217, 119, 6, 0.4)' }}>
+                <FiBell /> Not Sent Queue ({flatTickets.filter(t => !t.sent).length})
+              </h3>
+              {flatTickets.filter(t => !t.sent).length > 0 && (
+                <button
+                  className="btn btn-sm btn-outline"
+                  onClick={handleSendAll}
+                  style={{
+                    borderColor: '#D97706',
+                    color: '#D97706',
+                    background: 'rgba(217, 119, 6, 0.1)',
+                    boxShadow: '0 0 10px rgba(217, 119, 6, 0.2)',
+                    fontSize: '0.8rem',
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '6px'
+                  }}
+                >
+                  Send All
+                </button>
+              )}
+            </div>
             {flatLoading ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}><FiActivity className="icon-spin" /> Loading...</div>
-            ) : flatTickets.filter(t => !t.pdfSent).length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', border: '1px dashed var(--border)', borderRadius: '8px' }}>No tickets in remind queue.</div>
+            ) : flatTickets.filter(t => !t.sent).length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', border: '1px dashed var(--border)', borderRadius: '8px' }}>No tickets in not sent queue.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {flatTickets.filter(t => !t.pdfSent).map(t => (
-                  <div key={t._id} className="history-ticket-card" onClick={() => setSelectedTicket(t)} style={{ borderLeft: '3px solid #f0a500', cursor: 'pointer' }}>
+                {flatTickets.filter(t => !t.sent).map(t => (
+                  <div key={t._id} className="history-ticket-card" onClick={() => setSelectedTicket(t)} style={{ borderLeft: '3px solid #D97706', cursor: 'pointer' }}>
                     <div className="ticket-card-name">{t.member1}{t.member2 ? ` & ${t.member2}` : ''}</div>
                     <div className="ticket-card-meta">
                       <span><FiCalendar /> {formatDateStr(t.visitDate)}</span>
@@ -554,17 +715,17 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
 
           {/* Sent Column */}
           <div className="sent-column">
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1rem', color: '#22c55e', textTransform: 'uppercase', borderBottom: '2px solid #22c55e', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-              <FiSend /> Sent ({flatTickets.filter(t => t.pdfSent).length})
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1rem', color: '#3B82F6', textTransform: 'uppercase', borderBottom: '2px solid #3B82F6', paddingBottom: '0.5rem', marginBottom: '1rem', textShadow: '0 0 8px rgba(59, 130, 246, 0.4)' }}>
+              <FiSend /> Sent ({flatTickets.filter(t => t.sent).length})
             </h3>
             {flatLoading ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}><FiActivity className="icon-spin" /> Loading...</div>
-            ) : flatTickets.filter(t => t.pdfSent).length === 0 ? (
+            ) : flatTickets.filter(t => t.sent).length === 0 ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', border: '1px dashed var(--border)', borderRadius: '8px' }}>No sent tickets.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {flatTickets.filter(t => t.pdfSent).map(t => (
-                  <div key={t._id} className="history-ticket-card" onClick={() => setSelectedTicket(t)} style={{ borderLeft: '3px solid #22c55e', cursor: 'pointer' }}>
+                {flatTickets.filter(t => t.sent).map(t => (
+                  <div key={t._id} className="history-ticket-card" onClick={() => setSelectedTicket(t)} style={{ borderLeft: '3px solid #3B82F6', cursor: 'pointer' }}>
                     <div className="ticket-card-name">{t.member1}{t.member2 ? ` & ${t.member2}` : ''}</div>
                     <div className="ticket-card-meta">
                       <span><FiCalendar /> {formatDateStr(t.visitDate)}</span>
@@ -776,28 +937,90 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
                 </span>
               </div>
 
+              <div className="history-modal-row">
+                <span className="history-modal-label">WhatsApp Status:</span>
+                <span className="history-modal-value">
+                  {selectedTicket.sent ? (
+                    <span style={{ color: '#22c55e', fontWeight: 700, textShadow: '0 0 8px rgba(34, 197, 94, 0.4)' }}>Sent</span>
+                  ) : selectedTicket.deliveryStatus === 'failed' ? (
+                    <span style={{ color: '#ef4444', fontWeight: 700, textShadow: '0 0 8px rgba(239, 68, 68, 0.4)' }}>Failed</span>
+                  ) : (
+                    <span style={{ color: '#D97706', fontWeight: 700, textShadow: '0 0 8px rgba(217, 119, 6, 0.4)' }}>Not Sent</span>
+                  )}
+                </span>
+              </div>
+
+              {selectedTicket.errorMessage && (
+                <div className="history-modal-row" style={{ borderLeft: '3px solid #ef4444', background: 'rgba(239, 68, 68, 0.05)', paddingLeft: '0.5rem' }}>
+                  <span className="history-modal-label" style={{ color: '#ef4444' }}>Error Details:</span>
+                  <span className="history-modal-value" style={{ color: '#ef4444', fontSize: '0.8rem', whiteSpace: 'normal', wordBreak: 'break-word' }}>{selectedTicket.errorMessage}</span>
+                </div>
+              )}
+
+              {selectedTicket.sentAt && (
+                <div className="history-modal-row">
+                  <span className="history-modal-label">Last Sent Time:</span>
+                  <span className="history-modal-value">{new Date(selectedTicket.sentAt).toLocaleString('en-GB')}</span>
+                </div>
+              )}
+
               {/* Action Buttons Row */}
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
-                {ticketFilter === 'sent' && (
-                  <div style={{ flex: '1 1 100%', display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
-                    <SendButton
-                      booking={selectedTicket}
-                      onSent={(updated) => {
-                        setSelectedTicket(updated);
-                        setFlatTickets((prev) => prev.map((t) => (t._id === updated._id ? updated : t)));
-                        const folderId = updated.createdAt?.split('T')[0];
-                        if (folderId) {
-                          setFolderTickets((prev) => ({
-                            ...prev,
-                            [folderId]: prev[folderId]?.map((t) => (t._id === updated._id ? updated : t)) || [],
-                          }));
-                        }
-                        setSearchResults((prev) => prev.map((t) => (t._id === updated._id ? updated : t)));
-                        fetchFolders();
-                      }}
-                    />
+                {/* Send/Resend Actions */}
+                {selectedTicket.pdfUrl && (
+                  <div style={{ flex: '1 1 100%', marginBottom: '0.5rem' }}>
+                    {selectedTicket.sent ? (
+                      <button 
+                        className="btn btn-primary btn-sm" 
+                        style={{
+                          width: '100%',
+                          background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
+                          boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
+                          border: 'none',
+                          color: '#fff',
+                          fontWeight: 600,
+                          padding: '0.6rem'
+                        }} 
+                        onClick={() => handleSendWhatsApp(selectedTicket._id)}
+                      >
+                        Send Again
+                      </button>
+                    ) : selectedTicket.deliveryStatus === 'failed' ? (
+                      <button 
+                        className="btn btn-primary btn-sm" 
+                        style={{
+                          width: '100%',
+                          background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
+                          boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
+                          border: 'none',
+                          color: '#fff',
+                          fontWeight: 600,
+                          padding: '0.6rem'
+                        }} 
+                        onClick={() => handleSendWhatsApp(selectedTicket._id)}
+                      >
+                        Retry Send
+                      </button>
+                    ) : (
+                      <button 
+                        className="btn btn-primary btn-sm" 
+                        style={{
+                          width: '100%',
+                          background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
+                          boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
+                          border: 'none',
+                          color: '#fff',
+                          fontWeight: 600,
+                          padding: '0.6rem'
+                        }} 
+                        onClick={() => handleSendWhatsApp(selectedTicket._id)}
+                      >
+                        Send via WhatsApp
+                      </button>
+                    )}
                   </div>
                 )}
+
                 {/* File input helper */}
                 <input 
                   type="file" 
@@ -933,6 +1156,126 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
               >
                 Download PDF
               </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSendingAll && (
+        <div className="history-modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="history-modal-container" style={{
+            maxWidth: '450px',
+            background: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(59, 130, 246, 0.2)',
+            boxShadow: '0 0 30px rgba(59, 130, 246, 0.2)'
+          }}>
+            <div className="history-modal-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <h3 className="history-modal-title" style={{ color: '#3B82F6', textShadow: '0 0 10px rgba(59, 130, 246, 0.5)' }}>
+                Sending Tickets via WhatsApp
+              </h3>
+            </div>
+            <div className="history-modal-body" style={{ color: '#f8fafc' }}>
+              <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                <FiActivity className="icon-spin" style={{ fontSize: '2.5rem', color: '#3B82F6', filter: 'drop-shadow(0 0 8px rgba(59, 130, 246, 0.6))', marginBottom: '0.5rem' }} />
+                <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>
+                  {sendAllProgress.current === sendAllProgress.total ? 'Processing Complete' : `Sending ${sendAllProgress.current} of ${sendAllProgress.total}`}
+                </div>
+                {sendAllProgress.currentName && sendAllProgress.current !== sendAllProgress.total && (
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                    Current: <span style={{ color: '#60A5FA' }}>{sendAllProgress.currentName}</span>
+                  </div>
+                )}
+              </div>
+
+              <style>{`
+                @keyframes waterWave {
+                  0% { background-position: 0% 50%; }
+                  50% { background-position: 100% 50%; }
+                  100% { background-position: 0% 50%; }
+                }
+                .water-tube-fill {
+                  background-size: 200% 200%;
+                  animation: waterWave 3s ease infinite;
+                }
+              `}</style>
+
+              <div style={{ width: '100%', margin: '1.5rem 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>
+                  <span>Progress</span>
+                  <span style={{ fontWeight: 600, color: '#3B82F6' }}>{sendAllProgress.total > 0 ? Math.round((sendAllProgress.current / sendAllProgress.total) * 100) : 0}%</span>
+                </div>
+                <div style={{
+                  width: '100%',
+                  height: '24px',
+                  borderRadius: '12px',
+                  background: 'rgba(15, 23, 42, 0.6)',
+                  border: '2px solid rgba(59, 130, 246, 0.3)',
+                  boxShadow: '0 0 15px rgba(59, 130, 246, 0.15), inset 0 2px 4px rgba(0, 0, 0, 0.6)',
+                  overflow: 'hidden',
+                  position: 'relative'
+                }}>
+                  <div 
+                    className="water-tube-fill"
+                    style={{
+                      width: `${sendAllProgress.total > 0 ? Math.round((sendAllProgress.current / sendAllProgress.total) * 100) : 0}%`,
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #1E3A8A 0%, #3B82F6 50%, #60A5FA 100%)',
+                      boxShadow: '0 0 10px rgba(59, 130, 246, 0.7), inset 0 -2px 6px rgba(0, 0, 0, 0.4)',
+                      transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                      position: 'relative',
+                      borderRadius: '10px'
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.25) 100%)'
+                    }} />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                <div style={{
+                  background: 'rgba(34, 197, 94, 0.1)',
+                  border: '1px solid rgba(34, 197, 94, 0.2)',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                  boxShadow: '0 0 10px rgba(34, 197, 94, 0.05)'
+                }}>
+                  <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Success</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#22c55e', textShadow: '0 0 8px rgba(34, 197, 94, 0.4)' }}>
+                    {sendAllProgress.success}
+                  </div>
+                </div>
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                  boxShadow: '0 0 10px rgba(239, 68, 68, 0.05)'
+                }}>
+                  <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Failed</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#ef4444', textShadow: '0 0 8px rgba(239, 68, 68, 0.4)' }}>
+                    {sendAllProgress.failed}
+                  </div>
+                </div>
+              </div>
+
+              {sendAllProgress.current === sendAllProgress.total && (
+                <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+                  <button
+                    className="btn btn-primary"
+                    style={{ minWidth: '120px' }}
+                    onClick={() => setIsSendingAll(false)}
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
