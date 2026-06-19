@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const bookingSchema = new mongoose.Schema(
   {
-    serialNo: { type: Number, unique: true },
+    serialNo: { type: Number },
     bookingDate: { type: Date, required: true, default: Date.now },
     visitDate: { type: Date, required: true },
     slotTime: { type: String, default: '' },
@@ -31,11 +31,30 @@ const bookingSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Auto-increment serialNo
+// Auto-increment serialNo per week (Saturday 12:00 AM to Friday 11:59:59.999 PM)
 bookingSchema.pre('save', async function (next) {
   if (this.isNew) {
-    const last = await this.constructor.findOne({}, {}, { sort: { serialNo: -1 } });
-    this.serialNo = last ? last.serialNo + 1 : 1;
+    const referenceDate = new Date();
+    const day = referenceDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const diff = (day + 1) % 7; // Days since Saturday
+    
+    const startOfWeek = new Date(referenceDate);
+    startOfWeek.setDate(referenceDate.getDate() - diff);
+    startOfWeek.setHours(0, 0, 0, 0);
+    
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    const lastInWeek = await this.constructor.findOne(
+      {
+        createdAt: { $gte: startOfWeek, $lte: endOfWeek }
+      },
+      {},
+      { sort: { serialNo: -1 } }
+    );
+
+    this.serialNo = lastInWeek ? lastInWeek.serialNo + 1 : 1;
   }
   next();
 });

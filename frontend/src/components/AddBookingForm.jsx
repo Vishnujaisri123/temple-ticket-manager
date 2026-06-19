@@ -24,12 +24,15 @@ const AddBookingForm = ({ onAdded }) => {
   const minVisitDate = nextMonth.toISOString().split('T')[0];
 
   const handleChange = (e) => {
-    if (e.target.name === 'phone') {
+    const { name, value } = e.target;
+    if (name === 'phone') {
       // Only allow digits, max 10
-      const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+      const digits = value.replace(/\D/g, '').slice(0, 10);
       setForm({ ...form, phone: digits });
+    } else if (name === 'bookingDate') {
+      setForm({ ...form, bookingDate: value, visitDate: value });
     } else {
-      setForm({ ...form, [e.target.name]: e.target.value });
+      setForm({ ...form, [name]: value });
     }
   };
 
@@ -70,7 +73,7 @@ const AddBookingForm = ({ onAdded }) => {
           </div>
           <div className="form-group">
             <label>Visit Date *</label>
-            <input type="date" name="visitDate" value={form.visitDate} onChange={handleChange} min={minVisitDate} required />
+            <input type="date" name="visitDate" value={form.visitDate} onChange={handleChange} required />
           </div>
           <div className="form-group">
             <label>Timeslot</label>
