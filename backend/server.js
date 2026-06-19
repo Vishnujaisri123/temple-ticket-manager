@@ -1,8 +1,8 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 require('express-async-errors');
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const connectDB = require('./config/database');
 const bookingRoutes = require('./routes/bookingRoutes');
 const authRoutes = require('./routes/authRoutes');
