@@ -481,34 +481,130 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
 
 /* Solo Leveling specific system styling */
 .solo-leveling-theme {
-  background: var(--bg) !important;
+  background: transparent !important;
   position: relative;
+}
+
+/* Background system container */
+.deity-background-system {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: -999;
+  background-color: #050816; /* Dark Background */
+  pointer-events: none;
   overflow: hidden;
 }
 
-.solo-leveling-theme::before {
-  content: '';
-  position: fixed;
+/* 1. Deity image with blue-purple monochrome style */
+.deity-watermark {
+  position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: radial-gradient(circle at 50% 30%, var(--bg-secondary) 0%, var(--bg) 100%) !important;
-  z-index: -1;
+  background: 
+    url('/deity.jpg') no-repeat center center / cover,
+    linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);
+  background-blend-mode: luminosity;
+  opacity: 0.12; /* Light watermark visibility (between 8% and 15%) */
   pointer-events: none;
+}
+
+/* 2. Cyber system grid */
+.deity-grid {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: 
+    linear-gradient(rgba(59, 130, 246, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 130, 246, 0.02) 1px, transparent 1px);
+  background-size: 50px 50px;
+  pointer-events: none;
+}
+
+/* 3. Soft glows and dark overlay to ensure readability */
+.deity-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(circle at 50% 40%, rgba(139, 92, 246, 0.08) 0%, rgba(59, 130, 246, 0.05) 50%, rgba(5, 8, 22, 0.85) 100%);
+  pointer-events: none;
+}
+
+/* 4. Shifting light energy mist */
+.deity-mist {
+  position: absolute;
+  top: -20%; left: -20%; right: -20%; bottom: -20%;
+  background: radial-gradient(circle at 30% 20%, rgba(56, 189, 248, 0.06) 0%, transparent 50%),
+              radial-gradient(circle at 70% 80%, rgba(139, 92, 246, 0.06) 0%, transparent 50%);
+  filter: blur(50px);
+  animation: mistMovement 25s infinite ease-in-out;
+  pointer-events: none;
+}
+
+@keyframes mistMovement {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+  50% { transform: translate(3%, 2%) scale(1.1); opacity: 0.8; }
+  100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+}
+
+/* 5. Subtle rune strip on the left */
+.deity-runes-left {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  writing-mode: vertical-rl;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 6px;
+  color: rgba(56, 189, 248, 0.12); /* Shadow Cyan with low opacity */
+  text-shadow: 0 0 4px rgba(56, 189, 248, 0.2);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* 6. Subtle rune strip on the right */
+.deity-runes-right {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  writing-mode: vertical-rl;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 6px;
+  color: rgba(139, 92, 246, 0.12); /* Monarch Purple with low opacity */
+  text-shadow: 0 0 4px rgba(139, 92, 246, 0.2);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Hide runes on small screens to avoid cluttering */
+@media (max-width: 1024px) {
+  .deity-runes-left,
+  .deity-runes-right {
+    display: none;
+  }
 }
 
 /* Glassmorphism cards / system panels */
 .solo-leveling-theme .stat-card,
 .solo-leveling-theme .add-booking-bar,
 .solo-leveling-theme .table-wrapper,
-.solo-leveling-theme .admin-stat-card {
-  background: rgba(15, 23, 42, 0.85) !important;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(59, 130, 246, 0.15) !important;
+.solo-leveling-theme .admin-stat-card,
+.solo-leveling-theme .history-folder-card,
+.solo-leveling-theme .history-ticket-card,
+.solo-leveling-theme .history-modal-container,
+.solo-leveling-theme .auth-card {
+  background: rgba(15, 23, 42, 0.75) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(59, 130, 246, 0.25) !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 0 8px rgba(59, 130, 246, 0.05) !important;
   border-radius: 10px;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   position: relative;
   overflow: hidden;
+}
+
+.solo-leveling-theme .auth-page {
+  background: transparent !important;
 }
 
 /* Text Visibility Rules */
@@ -1352,191 +1448,6 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
 
 .pdf-viewer-close:hover {
   color: var(--text);
-}
-
-/* ── Solo Monarch Deity Background & Advanced Effects ── */
-.solo-monarch-bg-container {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: -10;
-  background-color: #050816; /* Dark Background */
-  overflow: hidden;
-  pointer-events: none;
-}
-
-/* Faint Deity Watermark (8% - 15% opacity, blue-purple monochrome Solo Leveling grading) */
-.deity-watermark {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-image: url('./assets/deity.png');
-  background-repeat: no-repeat;
-  background-position: center center;
-  background-size: cover;
-  opacity: 0.11; /* Watermark opacity in range 8%-15% */
-  filter: grayscale(100%) brightness(0.6) contrast(1.35) sepia(100%) hue-rotate(225deg) saturate(380%);
-  mix-blend-mode: screen;
-}
-
-/* Faint Blue Aura / Glow */
-.glow-aura-blue {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 70%;
-  height: 70%;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.28) 0%, transparent 70%);
-  z-index: -9;
-  filter: blur(50px);
-}
-
-/* Faint Purple Aura */
-.glow-aura-purple {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 90%;
-  height: 90%;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.18) 0%, transparent 75%);
-  z-index: -9;
-  filter: blur(70px);
-}
-
-/* Dark Overlay Layer above the watermark */
-.dark-overlay-layer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(5, 8, 22, 0.85); /* Dark Overlay */
-  z-index: -8;
-}
-
-/* Light Energy Mist */
-.energy-mist-container {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: -7;
-  opacity: 0.15;
-}
-
-.mist-cloud {
-  position: absolute;
-  width: 140%;
-  height: 140%;
-  background: radial-gradient(circle, rgba(56, 189, 248, 0.08) 0%, transparent 60%);
-  filter: blur(70px);
-}
-
-.mist-1 {
-  top: -20%;
-  left: -20%;
-  animation: mistRotation1 45s infinite linear;
-}
-
-.mist-2 {
-  bottom: -20%;
-  right: -20%;
-  animation: mistRotation2 55s infinite linear;
-}
-
-@keyframes mistRotation1 {
-  0% { transform: translate(0, 0) rotate(0deg); }
-  50% { transform: translate(4%, 4%) rotate(180deg); }
-  100% { transform: translate(0, 0) rotate(360deg); }
-}
-
-@keyframes mistRotation2 {
-  0% { transform: translate(0, 0) rotate(360deg); }
-  50% { transform: translate(-4%, -4%) rotate(180deg); }
-  100% { transform: translate(0, 0) rotate(0deg); }
-}
-
-/* Floating Energy Particles */
-.floating-particle {
-  position: absolute;
-  background: #3B82F6;
-  border-radius: 50%;
-  box-shadow: 0 0 8px #38BDF8, 0 0 16px #3B82F6;
-  animation: floatUpSlow infinite linear;
-}
-
-@keyframes floatUpSlow {
-  0% {
-    transform: translateY(105vh) scale(0.7);
-    opacity: 0;
-  }
-  15% {
-    opacity: 0.85;
-  }
-  85% {
-    opacity: 0.85;
-  }
-  100% {
-    transform: translateY(-5vh) scale(1.15);
-    opacity: 0;
-  }
-}
-
-/* Subtle Runes fading in and out */
-.faint-rune {
-  position: absolute;
-  color: #8B5CF6;
-  opacity: 0;
-  text-shadow: 0 0 8px #38BDF8, 0 0 16px #8B5CF6;
-  font-family: 'Consolas', monospace;
-  font-weight: 700;
-  animation: runeGlowFade infinite ease-in-out;
-}
-
-@keyframes runeGlowFade {
-  0%, 100% { opacity: 0; transform: translateY(0) scale(0.9); }
-  50% { opacity: 0.28; transform: translateY(-8px) scale(1.05); }
-}
-
-/* Override Global theme styles to support the dynamic background */
-.solo-leveling-theme {
-  background: transparent !important;
-}
-
-.solo-leveling-theme::before {
-  content: '';
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: radial-gradient(circle at 50% 30%, rgba(11, 17, 32, 0.45) 0%, rgba(5, 8, 22, 0.75) 100%) !important;
-  z-index: -1;
-}
-
-/* Glassmorphism Overrides for all card panels in the system */
-.solo-leveling-theme .stat-card,
-.solo-leveling-theme .add-booking-bar,
-.solo-leveling-theme .table-wrapper,
-.solo-leveling-theme .admin-stat-card,
-.solo-leveling-theme .history-folder-card,
-.solo-leveling-theme .history-ticket-card,
-.solo-leveling-theme .history-modal-container,
-.solo-leveling-theme .filter-chip,
-.auth-card {
-  background: rgba(15, 23, 42, 0.75) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  border: 1px solid rgba(59, 130, 246, 0.25) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 0 12px rgba(59, 130, 246, 0.08) !important;
-}
-
-.auth-page {
-  background: transparent !important;
 }
 
 
