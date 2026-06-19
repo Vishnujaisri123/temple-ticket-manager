@@ -500,7 +500,7 @@ td { padding: 0.6rem 0.65rem; vertical-align: middle; }
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
   background: 
-    url('/deity.jpg') no-repeat center center / cover,
+    url('/deity.jpg') no-repeat center center / auto 100%,
     linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);
   background-blend-mode: luminosity;
   opacity: 0.12; /* Light watermark visibility (between 8% and 15%) */
