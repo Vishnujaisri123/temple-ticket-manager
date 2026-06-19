@@ -22,7 +22,8 @@ import {
   FiFileText,
   FiTrash2,
   FiLink,
-  FiAlertCircle
+  FiAlertCircle,
+  FiBell
 } from 'react-icons/fi';
 import { LuHistory } from 'react-icons/lu';
 import { HiOutlineDocumentReport, HiTrendingUp } from 'react-icons/hi';
