@@ -266,11 +266,13 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
     }
   };
 
-  const handleSendBrowser = async (ticket) => {
+  const handleSendBrowser = (ticket) => {
+    // 1. Clean phone number
     let phone = ticket.phone.replace(/\D/g, '');
     if (phone.startsWith('0')) phone = phone.slice(1);
     if (!phone.startsWith('91')) phone = '91' + phone;
 
+    // 2. Format bookedDate
     const bookedDate = ticket.bookingDate
       ? new Date(ticket.bookingDate).toLocaleDateString('en-IN', {
           day: '2-digit',
@@ -279,7 +281,9 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
         })
       : '—';
     const timeslot = ticket.slotTime || '—';
+    const pdfLink = ticket.pdfUrl || ticket.localPdfUrl || '';
 
+    // 3. Build the bilingual message with the PDF link
     const message = `🙏 శ్రీ వేంకటేశ్వర స్వామి వారి ఆశీస్సులతో 🙏
 
 నమస్కారం ${ticket.member1} గారు,
@@ -289,9 +293,8 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
 📅 తేదీ | Date: ${bookedDate}
 🕘 సమయం | Time: ${timeslot}
 
-📄 మీ టికెట్ PDF జతచేయబడింది.
-Download ticket here 👇
-${ticket.pdfUrl}
+📄 మీ టికెట్ PDF లింక్ / PDF Link:
+🔗 ${pdfLink}
 
 ⚠️ దయచేసి టికెట్కు ప్రింట్ తీసుకుని దేవాలయానికి తీసుకురండి.
 ⚠️ Please take a printout of the ticket before coming to the temple.
@@ -305,22 +308,33 @@ Thank You 🙏
 
 **వడపల్లి శ్రీ వేంకటేశ్వర స్వామి దేవస్థానం**`;
 
+    // 4. Open WhatsApp Web / App
     const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
-    
-    const w = window.open(url, '_blank');
-    if (w) {
-      w.focus();
-    }
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 
+    // 5. Mark as sent locally & backend
+    markManualSent(ticket._id);
+  };
+
+  const markManualSent = async (ticketId) => {
     try {
-      const { data } = await updateBooking(ticket._id, { 
+      const { data } = await updateBooking(ticketId, { 
         sent: true, 
         pdfSent: true, 
-        sentAt: new Date().toISOString(),
-        deliveryStatus: 'sent' 
+        deliveryStatus: 'sent',
+        sentAt: new Date().toISOString()
       });
       
-      setSelectedTicket(data);
+      // Update state in modal if it's the currently selected ticket
+      setSelectedTicket((prev) => (prev && prev._id === ticketId ? data : prev));
+
+      // Update cached lists
       const folderId = data.createdAt?.split('T')[0];
       if (folderId) {
         setFolderTickets((prev) => ({
@@ -330,16 +344,19 @@ Thank You 🙏
       }
       setSearchResults((prev) => prev.map((t) => (t._id === data._id ? data : t)));
       setFlatTickets((prev) => prev.map((t) => (t._id === data._id ? data : t)));
-      
+
+      toast.success('Opened WhatsApp Web! Ticket marked as sent.');
+
       if (ticketFilter === 'sent') {
         fetchFlatTickets();
       } else {
         fetchFolders();
       }
     } catch (err) {
-      // Silent catch
+      console.error('Failed to mark manual send status:', err);
     }
   };
+
 
   const handleSendAll = async () => {
     const unsentTickets = flatTickets.filter(t => !t.sent);
@@ -1043,12 +1060,12 @@ Thank You 🙏
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
                 {/* Send/Resend Actions */}
                 {selectedTicket.pdfUrl && (
-                  <div style={{ flex: '1 1 100%', display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <div style={{ flex: '1 1 100%', display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                     {selectedTicket.sent ? (
                       <button 
                         className="btn btn-primary btn-sm" 
                         style={{
-                          width: '100%',
+                          flex: 1,
                           background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
                           boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
                           border: 'none',
@@ -1064,7 +1081,7 @@ Thank You 🙏
                       <button 
                         className="btn btn-primary btn-sm" 
                         style={{
-                          width: '100%',
+                          flex: 1,
                           background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
                           boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
                           border: 'none',
@@ -1080,7 +1097,7 @@ Thank You 🙏
                       <button 
                         className="btn btn-primary btn-sm" 
                         style={{
-                          width: '100%',
+                          flex: 1,
                           background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
                           boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
                           border: 'none',
@@ -1094,19 +1111,17 @@ Thank You 🙏
                       </button>
                     )}
 
-                    {/* Send Browser Option */}
-                    <button 
-                      className="btn btn-outline btn-sm" 
+                    <button
+                      className="btn btn-outline btn-sm animate-pulse"
                       style={{
-                        width: '100%',
+                        flex: 1,
                         borderColor: '#25D366',
                         color: '#25D366',
-                        background: 'rgba(37, 211, 102, 0.05)',
-                        boxShadow: '0 0 10px rgba(37, 211, 102, 0.15)',
+                        background: 'rgba(37, 211, 102, 0.08)',
+                        boxShadow: '0 0 15px rgba(37, 211, 102, 0.2)',
                         fontWeight: 600,
-                        padding: '0.6rem',
-                        marginTop: '0.25rem'
-                      }} 
+                        padding: '0.6rem'
+                      }}
                       onClick={() => handleSendBrowser(selectedTicket)}
                     >
                       Send Browser
