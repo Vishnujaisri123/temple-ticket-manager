@@ -266,73 +266,50 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
     }
   };
 
-  const handleSendBrowser = (ticket) => {
-    // 1. Clean phone number
+  const handleSendBrowser = async (ticket) => {
+    // Format the phone number
     let phone = ticket.phone.replace(/\D/g, '');
     if (phone.startsWith('0')) phone = phone.slice(1);
     if (!phone.startsWith('91')) phone = '91' + phone;
 
-    // 2. Format bookedDate
-    const bookedDate = ticket.bookingDate
-      ? new Date(ticket.bookingDate).toLocaleDateString('en-IN', {
-          day: '2-digit',
-          month: 'long',
-          year: 'numeric',
+    // Build the message template
+    const visitDate = ticket.visitDate 
+      ? new Date(ticket.visitDate).toLocaleDateString('en-IN', {
+          day: '2-digit', month: 'long', year: 'numeric',
         })
       : '—';
-    const timeslot = ticket.slotTime || '—';
-    const pdfLink = ticket.pdfUrl || ticket.localPdfUrl || '';
+    const pdfLink = ticket.pdfUrl;
+    const members = ticket.member2
+      ? `${ticket.member1} & ${ticket.member2}`
+      : ticket.member1;
+    const gothram = ticket.gothram ? `\n🏛️ Gothram: ${ticket.gothram}` : '';
 
-    // 3. Build the bilingual message with the PDF link
-    const message = `🙏 శ్రీ వేంకటేశ్వర స్వామి వారి ఆశీస్సులతో 🙏
+    const message = `🙏 Namaskaram ${ticket.member1}!
 
-నమస్కారం ${ticket.member1} గారు,
+Your temple ticket is ready.
 
-మీ వడపల్లి శ్రీ వేంకటేశ్వర స్వామి వారి టికెట్ సిద్ధంగా ఉంది.
+📅 Visit Date: *${visitDate}*
+👥 Members: ${members}${gothram}
 
-📅 తేదీ | Date: ${bookedDate}
-🕘 సమయం | Time: ${timeslot}
+📄 Download your ticket here 👇
+${pdfLink}
 
-📄 మీ టికెట్ PDF లింక్ / PDF Link:
-🔗 ${pdfLink}
+Jai Govinda! 🙏`;
 
-⚠️ దయచేసి టికెట్కు ప్రింట్ తీసుకుని దేవాలయానికి తీసుకురండి.
-⚠️ Please take a printout of the ticket before coming to the temple.
-
-🌸 పూజా సామగ్రి (Pooja Items) కావాలంటే, దయచేసి **బుక్ చేసిన తేదీకి 3 రోజుల ముందు** ఈ నంబర్కు సంప్రదించండి: **8331923995**
-
-🌸 If you require Pooja items, please contact **8331923995** at least **3 days before your booked date**.
-
-ధన్యవాదాలు 🙏
-Thank You 🙏
-
-**వడపల్లి శ్రీ వేంకటేశ్వర స్వామి దేవస్థానం**`;
-
-    // 4. Open WhatsApp Web / App
+    // Open WhatsApp Web/App
     const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
-    const a = document.createElement('a');
-    a.href = url;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    window.open(url, '_blank', 'noopener,noreferrer');
 
-    // 5. Mark as sent locally & backend
-    markManualSent(ticket._id);
-  };
-
-  const markManualSent = async (ticketId) => {
+    const toastId = toast.loading ? toast.loading('Opening WhatsApp and updating status...') : null;
     try {
-      const { data } = await updateBooking(ticketId, { 
-        sent: true, 
-        pdfSent: true, 
+      const { data } = await updateBooking(ticket._id, {
+        sent: true,
+        pdfSent: true,
+        sentAt: new Date(),
         deliveryStatus: 'sent',
-        sentAt: new Date().toISOString()
+        errorMessage: ''
       });
-      
-      // Update state in modal if it's the currently selected ticket
-      setSelectedTicket((prev) => (prev && prev._id === ticketId ? data : prev));
+      setSelectedTicket(data);
 
       // Update cached lists
       const folderId = data.createdAt?.split('T')[0];
@@ -345,7 +322,8 @@ Thank You 🙏
       setSearchResults((prev) => prev.map((t) => (t._id === data._id ? data : t)));
       setFlatTickets((prev) => prev.map((t) => (t._id === data._id ? data : t)));
 
-      toast.success('Opened WhatsApp Web! Ticket marked as sent.');
+      if (toastId) toast.dismiss(toastId);
+      toast.success('Opened WhatsApp Web and marked ticket as sent!');
 
       if (ticketFilter === 'sent') {
         fetchFlatTickets();
@@ -353,10 +331,11 @@ Thank You 🙏
         fetchFolders();
       }
     } catch (err) {
-      console.error('Failed to mark manual send status:', err);
+      if (toastId) toast.dismiss(toastId);
+      console.error('Failed to update sent status:', err);
+      toast.error('Opened WhatsApp, but failed to update status on server.');
     }
   };
-
 
   const handleSendAll = async () => {
     const unsentTickets = flatTickets.filter(t => !t.sent);
@@ -1060,12 +1039,12 @@ Thank You 🙏
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
                 {/* Send/Resend Actions */}
                 {selectedTicket.pdfUrl && (
-                  <div style={{ flex: '1 1 100%', display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <div style={{ flex: '1 1 100%', marginBottom: '0.5rem' }}>
                     {selectedTicket.sent ? (
                       <button 
                         className="btn btn-primary btn-sm" 
                         style={{
-                          flex: 1,
+                          width: '100%',
                           background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
                           boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
                           border: 'none',
@@ -1081,7 +1060,7 @@ Thank You 🙏
                       <button 
                         className="btn btn-primary btn-sm" 
                         style={{
-                          flex: 1,
+                          width: '100%',
                           background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
                           boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
                           border: 'none',
@@ -1097,7 +1076,7 @@ Thank You 🙏
                       <button 
                         className="btn btn-primary btn-sm" 
                         style={{
-                          flex: 1,
+                          width: '100%',
                           background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
                           boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
                           border: 'none',
@@ -1110,18 +1089,18 @@ Thank You 🙏
                         Send via WhatsApp
                       </button>
                     )}
-
-                    <button
-                      className="btn btn-outline btn-sm animate-pulse"
+                    <button 
+                      className="btn btn-outline btn-sm" 
                       style={{
-                        flex: 1,
-                        borderColor: '#25D366',
-                        color: '#25D366',
-                        background: 'rgba(37, 211, 102, 0.08)',
-                        boxShadow: '0 0 15px rgba(37, 211, 102, 0.2)',
+                        width: '100%',
+                        borderColor: '#10B981',
+                        color: '#10B981',
+                        background: 'rgba(16, 185, 129, 0.1)',
+                        boxShadow: '0 0 10px rgba(16, 185, 129, 0.2)',
                         fontWeight: 600,
-                        padding: '0.6rem'
-                      }}
+                        padding: '0.6rem',
+                        marginTop: '0.5rem'
+                      }} 
                       onClick={() => handleSendBrowser(selectedTicket)}
                     >
                       Send Browser
