@@ -125,51 +125,53 @@ const uploadPdf = async (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
   const { id } = req.body;
 
-  const isProduction = process.env.NODE_ENV === 'production';
-  let pdfUrl = '';
-  let localPdfUrl = '';
-  let localPdfPath = '';
+  const localFilename = `ticket_${id}_${Date.now()}.pdf`;
+  const localPdfPath = path.join(uploadDir, localFilename);
+  
+  // Save locally first so it is immediately available
+  fs.writeFileSync(localPdfPath, req.file.buffer);
 
-  if (isProduction) {
-    // Production: Respond IMMEDIATELY, then upload to Cloudinary in background
-    // We update localPdfUrl to a temporary string so the UI knows a PDF exists, even while it's processing
-    const booking = await Booking.findByIdAndUpdate(id, { localPdfUrl: 'processing...', pdfUploaded: true }, { new: true });
-    if (!booking) return res.status(404).json({ message: 'Booking not found' });
-    
-    // Respond instantly so the UI doesn't hang
-    res.json({ pdfUrl: '', localPdfUrl: 'processing...', booking });
-    
-    // Background Cloudinary upload
+  const serverUrl = process.env.SERVER_URL || 'http://localhost:5000';
+  const localPdfUrl = `${serverUrl}/uploads/${localFilename}`;
+
+  // Clean up any old local PDF file first
+  const existing = await Booking.findById(id);
+  if (existing?.localPdfPath && fs.existsSync(existing.localPdfPath)) {
+    try { fs.unlinkSync(existing.localPdfPath); } catch (e) {}
+  }
+
+  // Update booking with the local URL first
+  const booking = await Booking.findByIdAndUpdate(
+    id,
+    { pdfUrl: localPdfUrl, localPdfUrl, localPdfPath, pdfUploaded: true },
+    { new: true }
+  );
+
+  if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+  // Respond immediately with the working local URL
+  res.json({ pdfUrl: localPdfUrl, localPdfUrl, booking });
+
+  // Background Cloudinary upload (if configured and not placeholder)
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const isCloudinaryConfigured = cloudName && cloudName !== 'your_cloud_name' && cloudName !== '';
+
+  if (isCloudinaryConfigured) {
     uploadToCloudinary(req.file.buffer, `ticket_${id}_${Date.now()}`)
-      .then(result => {
-        Booking.findByIdAndUpdate(id, { pdfUrl: result.secure_url, localPdfUrl: result.secure_url, pdfUploaded: true }).exec();
+      .then(async (result) => {
+        console.log(`[Cloudinary] Upload success for ticket ${id}: ${result.secure_url}`);
+        await Booking.findByIdAndUpdate(id, { pdfUrl: result.secure_url, localPdfUrl: result.secure_url });
+        // Clean up the local file since it's now on Cloudinary
+        if (fs.existsSync(localPdfPath)) {
+          try { fs.unlinkSync(localPdfPath); } catch (e) {}
+        }
       })
-      .catch(err => console.error('Cloudinary upload failed:', err.message));
-      
+      .catch(err => {
+        console.error(`[Cloudinary] Background upload failed for ticket ${id}:`, err.message);
+        // Do nothing - local serving is already configured and works
+      });
   } else {
-    // Development: save locally and respond IMMEDIATELY, then upload to Cloudinary in background
-    const localFilename = `ticket_${Date.now()}.pdf`;
-    localPdfPath = path.join(uploadDir, localFilename);
-    fs.writeFileSync(localPdfPath, req.file.buffer);
-    localPdfUrl = `${process.env.SERVER_URL}/uploads/${localFilename}`;
-    pdfUrl = localPdfUrl;
-
-    const booking = await Booking.findByIdAndUpdate(id, { pdfUrl, localPdfUrl, localPdfPath, pdfUploaded: true }, { new: true });
-    if (!booking) return res.status(404).json({ message: 'Booking not found' });
-    
-    // Respond instantly
-    res.json({ pdfUrl, localPdfUrl, booking });
-
-    // Background Cloudinary upload
-    uploadToCloudinary(req.file.buffer, `ticket_${id}_${Date.now()}`)
-      .then(result => Booking.findByIdAndUpdate(id, { pdfUrl: result.secure_url, pdfUploaded: true }).exec())
-      .catch(err => console.error('Cloudinary background upload failed:', err.message));
-
-    // Clean up old local file
-    const existing = await Booking.findById(id);
-    if (existing?.localPdfPath && fs.existsSync(existing.localPdfPath)) {
-      try { fs.unlinkSync(existing.localPdfPath); } catch (e) {}
-    }
+    console.log(`[Cloudinary] Cloudinary not configured or using placeholders. Serving ticket ${id} locally.`);
   }
 };
 

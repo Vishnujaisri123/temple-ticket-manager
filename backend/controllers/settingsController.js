@@ -17,17 +17,17 @@ const getTempleMedia = async (req, res) => {
 const uploadTempleVoiceMessage = async (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'No audio file uploaded' });
 
-  const isProduction = process.env.NODE_ENV === 'production';
-  let voiceMessageUrl = '';
-  let localPath = '';
-  let filename = req.file.originalname;
-
   let settings = await Settings.findOne({ key: 'global' });
   if (!settings) {
     settings = await Settings.create({ key: 'global' });
   }
 
-  // Clean up old local file if exists
+  const filename = req.file.originalname;
+  const fileExt = path.extname(filename) || '.mp3';
+  const localFilename = `voice_message_${Date.now()}${fileExt}`;
+  const localPath = path.join(uploadDir, localFilename);
+
+  // Clean up old local file if it exists
   if (settings.templeVoiceMessagePath && fs.existsSync(settings.templeVoiceMessagePath)) {
     try {
       fs.unlinkSync(settings.templeVoiceMessagePath);
@@ -36,37 +36,53 @@ const uploadTempleVoiceMessage = async (req, res) => {
     }
   }
 
-  if (isProduction) {
+  // Clean up from Cloudinary if old one was on Cloudinary
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const isCloudinaryConfigured = cloudName && cloudName !== 'your_cloud_name' && cloudName !== '';
+  if (isCloudinaryConfigured && settings.templeVoiceMessagePath && !settings.templeVoiceMessagePath.includes('uploads')) {
+    const { deleteFromCloudinary } = require('../config/cloudinary');
+    try {
+      await deleteFromCloudinary(settings.templeVoiceMessagePath);
+    } catch (err) {
+      console.error('Failed to delete old audio from Cloudinary:', err.message);
+    }
+  }
+
+  // Save the new file locally first
+  fs.writeFileSync(localPath, req.file.buffer);
+
+  const serverUrl = process.env.SERVER_URL || 'http://localhost:5000';
+  const localVoiceUrl = `${serverUrl}/uploads/${localFilename}`;
+
+  settings.templeVoiceMessageUrl = localVoiceUrl;
+  settings.templeVoiceMessagePath = localPath;
+  settings.templeVoiceMessageFilename = filename;
+  await settings.save();
+
+  // If Cloudinary is configured, try to upload to Cloudinary
+  if (isCloudinaryConfigured) {
     try {
       const publicId = `voice_message_${Date.now()}`;
       const result = await uploadToCloudinary(req.file.buffer, publicId);
       
       settings.templeVoiceMessageUrl = result.secure_url;
       settings.templeVoiceMessagePath = publicId; // Store public_id
-      settings.templeVoiceMessageFilename = filename;
       await settings.save();
-      
-      return res.json(settings);
+
+      // Clean up the local file since it's now on Cloudinary
+      if (fs.existsSync(localPath)) {
+        try { fs.unlinkSync(localPath); } catch (e) {}
+      }
+      console.log(`[Cloudinary] Voice message successfully uploaded to Cloudinary: ${result.secure_url}`);
     } catch (err) {
-      console.error('Cloudinary audio upload failed:', err);
-      return res.status(500).json({ message: 'Cloudinary audio upload failed: ' + err.message });
+      console.error('[Cloudinary] Voice message upload failed, falling back to local serving:', err.message);
+      // Keep local serving - settings are already saved with the local path/URL
     }
   } else {
-    const fileExt = path.extname(req.file.originalname) || '.mp3';
-    const localFilename = `voice_message_${Date.now()}${fileExt}`;
-    localPath = path.join(uploadDir, localFilename);
-    
-    fs.writeFileSync(localPath, req.file.buffer);
-
-    voiceMessageUrl = `${process.env.SERVER_URL || 'http://localhost:5000'}/uploads/${localFilename}`;
-
-    settings.templeVoiceMessageUrl = voiceMessageUrl;
-    settings.templeVoiceMessagePath = localPath;
-    settings.templeVoiceMessageFilename = filename;
-    await settings.save();
-
-    return res.json(settings);
+    console.log('[Cloudinary] Cloudinary not configured or using placeholders. Serving voice message locally.');
   }
+
+  return res.json(settings);
 };
 
 const deleteTempleVoiceMessage = async (req, res) => {
