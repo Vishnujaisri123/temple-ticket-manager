@@ -266,6 +266,81 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
     }
   };
 
+  const handleSendBrowser = async (ticket) => {
+    let phone = ticket.phone.replace(/\D/g, '');
+    if (phone.startsWith('0')) phone = phone.slice(1);
+    if (!phone.startsWith('91')) phone = '91' + phone;
+
+    const bookedDate = ticket.bookingDate
+      ? new Date(ticket.bookingDate).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        })
+      : '—';
+    const timeslot = ticket.slotTime || '—';
+
+    const message = `🙏 శ్రీ వేంకటేశ్వర స్వామి వారి ఆశీస్సులతో 🙏
+
+నమస్కారం ${ticket.member1} గారు,
+
+మీ వడపల్లి శ్రీ వేంకటేశ్వర స్వామి వారి టికెట్ సిద్ధంగా ఉంది.
+
+📅 తేదీ | Date: ${bookedDate}
+🕘 సమయం | Time: ${timeslot}
+
+📄 మీ టికెట్ PDF జతచేయబడింది.
+Download ticket here 👇
+${ticket.pdfUrl}
+
+⚠️ దయచేసి టికెట్కు ప్రింట్ తీసుకుని దేవాలయానికి తీసుకురండి.
+⚠️ Please take a printout of the ticket before coming to the temple.
+
+🌸 పూజా సామగ్రి (Pooja Items) కావాలంటే, దయచేసి **బుక్ చేసిన తేదీకి 3 రోజుల ముందు** ఈ నంబర్కు సంప్రదించండి: **8331923995**
+
+🌸 If you require Pooja items, please contact **8331923995** at least **3 days before your booked date**.
+
+ధన్యవాదాలు 🙏
+Thank You 🙏
+
+**వడపల్లి శ్రీ వేంకటేశ్వర స్వామి దేవస్థానం**`;
+
+    const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
+    
+    const w = window.open(url, '_blank');
+    if (w) {
+      w.focus();
+    }
+
+    try {
+      const { data } = await updateBooking(ticket._id, { 
+        sent: true, 
+        pdfSent: true, 
+        sentAt: new Date().toISOString(),
+        deliveryStatus: 'sent' 
+      });
+      
+      setSelectedTicket(data);
+      const folderId = data.createdAt?.split('T')[0];
+      if (folderId) {
+        setFolderTickets((prev) => ({
+          ...prev,
+          [folderId]: prev[folderId]?.map((t) => (t._id === data._id ? data : t)) || [],
+        }));
+      }
+      setSearchResults((prev) => prev.map((t) => (t._id === data._id ? data : t)));
+      setFlatTickets((prev) => prev.map((t) => (t._id === data._id ? data : t)));
+      
+      if (ticketFilter === 'sent') {
+        fetchFlatTickets();
+      } else {
+        fetchFolders();
+      }
+    } catch (err) {
+      // Silent catch
+    }
+  };
+
   const handleSendAll = async () => {
     const unsentTickets = flatTickets.filter(t => !t.sent);
     if (unsentTickets.length === 0) return;
@@ -968,7 +1043,7 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
                 {/* Send/Resend Actions */}
                 {selectedTicket.pdfUrl && (
-                  <div style={{ flex: '1 1 100%', marginBottom: '0.5rem' }}>
+                  <div style={{ flex: '1 1 100%', display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.5rem' }}>
                     {selectedTicket.sent ? (
                       <button 
                         className="btn btn-primary btn-sm" 
@@ -1018,6 +1093,24 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
                         Send via WhatsApp
                       </button>
                     )}
+
+                    {/* Send Browser Option */}
+                    <button 
+                      className="btn btn-outline btn-sm" 
+                      style={{
+                        width: '100%',
+                        borderColor: '#25D366',
+                        color: '#25D366',
+                        background: 'rgba(37, 211, 102, 0.05)',
+                        boxShadow: '0 0 10px rgba(37, 211, 102, 0.15)',
+                        fontWeight: 600,
+                        padding: '0.6rem',
+                        marginTop: '0.25rem'
+                      }} 
+                      onClick={() => handleSendBrowser(selectedTicket)}
+                    >
+                      Send Browser
+                    </button>
                   </div>
                 )}
 
