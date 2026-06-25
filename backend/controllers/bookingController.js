@@ -628,19 +628,29 @@ const sendWhatsApp = async (req, res) => {
       : '—';
     const timeslot = booking.slotTime || '—';
 
-    const messageText = `Hello ${booking.member1},
+    const messageText = `🙏 శ్రీ వేంకటేశ్వర స్వామి వారి ఆశీస్సులతో 🙏
 
-Your Sri Venkateswara Swamy Temple booking ticket is ready.
+నమస్కారం ${booking.member1} గారు,
 
-Booked Date:
-${bookedDate}
+మీ వడపల్లి శ్రీ వేంకటేశ్వర స్వామి వారి టికెట్ సిద్ధంగా ఉంది.
 
-Timeslot:
-${timeslot}
+📅 తేదీ | Date: ${bookedDate}
+🕘 సమయం | Time: ${timeslot}
 
-Please find your ticket attached.
+📄 మీ టికెట్ PDF జతచేయబడింది.
+📄 Your ticket PDF is attached.
 
-Thank you.`;
+⚠️ దయచేసి టికెట్కు ప్రింట్ తీసుకుని దేవాలయానికి తీసుకురండి.
+⚠️ Please take a printout of the ticket before coming to the temple.
+
+🌸 పూజా సామగ్రి (Pooja Items) కావాలంటే, దయచేసి **బుక్ చేసిన తేదీకి 3 రోజుల ముందు** ఈ నంబర్కు సంప్రదించండి: **8331923995**
+
+🌸 If you require Pooja items, please contact **8331923995** at least **3 days before your booked date**.
+
+ధన్యవాదాలు 🙏
+Thank You 🙏
+
+**వడపల్లి శ్రీ వేంకటేశ్వర స్వామి దేవస్థానం**`;
 
     const token = process.env.WHATSAPP_ACCESS_TOKEN;
     const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
