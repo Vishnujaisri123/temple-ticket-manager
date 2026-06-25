@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useCallback } from 'react';
-import { getHistoryFolders, getHistoryTickets, updateBooking, deleteBooking, uploadPdf, getBookings, sendWhatsApp } from '../services/api';
+import { getHistoryFolders, getHistoryTickets, updateBooking, deleteBooking, uploadPdf, getBookings, sendWhatsApp, getTempleMedia } from '../services/api';
 import { toast } from '../components/Toast';
 
 import {
@@ -23,7 +23,9 @@ import {
   FiTrash2,
   FiLink,
   FiAlertCircle,
-  FiBell
+  FiBell,
+  FiMusic,
+  FiVolume2
 } from 'react-icons/fi';
 import { LuHistory } from 'react-icons/lu';
 import { HiOutlineDocumentReport, HiTrendingUp } from 'react-icons/hi';
@@ -80,8 +82,26 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
     total: 0,
     success: 0,
     failed: 0,
-    currentName: ''
+    currentName: '',
+    step: ''
   });
+
+  // New States for Browser Send and Sending Progress
+  const [voiceMessageUrl, setVoiceMessageUrl] = useState('');
+  const [showBrowserInstructions, setShowBrowserInstructions] = useState(false);
+  const [instructedTicket, setInstructedTicket] = useState(null);
+  const [sendingTicketId, setSendingTicketId] = useState(null);
+  const [sendingProgressStep, setSendingProgressStep] = useState(null); // 'text' | 'pdf' | 'voice' | 'success' | 'failed_text' | 'failed_pdf' | 'failed_voice' | 'failed'
+
+  useEffect(() => {
+    getTempleMedia()
+      .then(({ data }) => {
+        if (data?.templeVoiceMessageUrl) {
+          setVoiceMessageUrl(data.templeVoiceMessageUrl);
+        }
+      })
+      .catch((err) => console.error('Failed to fetch voice message URL:', err));
+  }, []);
 
   const fetchFlatTickets = useCallback(async () => {
     setFlatLoading(true);
@@ -218,9 +238,18 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
 
   // ── WhatsApp Action Handlers ──
   const handleSendWhatsApp = async (ticketId) => {
-    const toastId = toast.loading ? toast.loading('Sending ticket via WhatsApp...') : null;
+    setSendingTicketId(ticketId);
+    setSendingProgressStep('text');
+
+    // Simulate progression of steps for visual feedback while API request is pending
+    const textTimer = setTimeout(() => setSendingProgressStep('pdf'), 1000);
+    const pdfTimer = setTimeout(() => setSendingProgressStep('voice'), 2200);
+
     try {
       const { data } = await sendWhatsApp(ticketId);
+      clearTimeout(textTimer);
+      clearTimeout(pdfTimer);
+      setSendingProgressStep('success');
       setSelectedTicket(data);
 
       // Update cached lists
@@ -234,7 +263,6 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
       setSearchResults((prev) => prev.map((t) => (t._id === data._id ? data : t)));
       setFlatTickets((prev) => prev.map((t) => (t._id === data._id ? data : t)));
 
-      if (toastId) toast.dismiss(toastId);
       toast.success('Ticket sent successfully via WhatsApp!');
       if (ticketFilter === 'sent') {
         fetchFlatTickets();
@@ -242,9 +270,21 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
         fetchFolders();
       }
     } catch (err) {
-      if (toastId) toast.dismiss(toastId);
-      const errMsg = err.response?.data?.message || 'Failed to send WhatsApp';
+      clearTimeout(textTimer);
+      clearTimeout(pdfTimer);
+      const errMsg = err.response?.data?.message || err.message || 'Failed to send WhatsApp';
       toast.error(errMsg);
+
+      // Determine which step failed from the error message to show precise visual feedback
+      if (errMsg.includes('Step 1') || errMsg.includes('Text')) {
+        setSendingProgressStep('failed_text');
+      } else if (errMsg.includes('Step 2') || errMsg.includes('PDF')) {
+        setSendingProgressStep('failed_pdf');
+      } else if (errMsg.includes('Step 3') || errMsg.includes('Voice')) {
+        setSendingProgressStep('failed_voice');
+      } else {
+        setSendingProgressStep('failed');
+      }
 
       // Update local state with failure
       const failedTicket = {
@@ -263,53 +303,80 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
         }));
       }
       setSearchResults((prev) => prev.map((t) => (t._id === ticketId ? failedTicket : t)));
+    } finally {
+      // Keep progress visible briefly on success/failure, then reset
+      setTimeout(() => {
+        setSendingTicketId(null);
+        setSendingProgressStep(null);
+      }, 3500);
     }
   };
 
-  const handleSendBrowser = async (ticket) => {
+  const handleSendBrowser = (ticket) => {
     // Format the phone number
     let phone = ticket.phone.replace(/\D/g, '');
     if (phone.startsWith('0')) phone = phone.slice(1);
     if (!phone.startsWith('91')) phone = '91' + phone;
 
-    // Build the message template
-    const visitDate = ticket.visitDate 
-      ? new Date(ticket.visitDate).toLocaleDateString('en-IN', {
-          day: '2-digit', month: 'long', year: 'numeric',
+    // Build the message template using the requested sequential message template
+    const bookedDate = ticket.bookingDate
+      ? new Date(ticket.bookingDate).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
         })
       : '—';
-    const pdfLink = ticket.pdfUrl;
-    const members = ticket.member2
-      ? `${ticket.member1} & ${ticket.member2}`
-      : ticket.member1;
-    const gothram = ticket.gothram ? `\n🏛️ Gothram: ${ticket.gothram}` : '';
+    const timeslot = ticket.slotTime || '—';
 
-    const message = `🙏 Namaskaram ${ticket.member1}!
+    const message = `🛕 *శ్రీ వేంకటేశ్వర స్వామి వారి ఆశీస్సులతో* 🛕
 
-Your temple ticket is ready.
+🌺 నమస్కారం *${ticket.member1}* గారు,
 
-📅 Visit Date: *${visitDate}*
-👥 Members: ${members}${gothram}
+మీ *వడపల్లి శ్రీ వేంకటేశ్వర స్వామి వారి అష్టోత్తర సేవ (Astothram) టికెట్* సిద్ధంగా ఉంది.
 
-📄 Download your ticket here 👇
-${pdfLink}
+🗓️ *తేదీ | Date:* ${bookedDate}
 
-Jai Govinda! 🙏`;
+🕘 *సమయం | Time:* ${timeslot}
+
+🖨️ *దయచేసి ఈ టికెట్కు ప్రింట్ తీసుకుని దేవాలయానికి తప్పనిసరిగా తీసుకురండి.*
+
+🖨️ *Please take a printout of this ticket and bring it with you to the temple.*
+
+🪔 *పూజా సామగ్రి (Pooja Items) కావాలంటే, బుక్ చేసిన తేదీకి కనీసం 3 రోజుల ముందు ఈ నంబర్ను సంప్రదించండి: 📞 8331923995*
+
+🪔 *If you require Pooja items, please contact 📞 8331923995 at least 3 days before your booked date.*
+
+🙏 *ధన్యవాదాలు | Thank You*
+
+*🛕 వడపల్లి శ్రీ వేంకటేశ్వర స్వామి దేవస్థానం 🛕*`;
 
     // Open WhatsApp Web/App
     const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
 
-    const toastId = toast.loading ? toast.loading('Opening WhatsApp and updating status...') : null;
+    // Hold ticket data and show instructions modal
+    setInstructedTicket(ticket);
+    setShowBrowserInstructions(true);
+  };
+
+  const handleMarkAsSentManually = async () => {
+    if (!instructedTicket) return;
+    const ticketId = instructedTicket._id;
+
+    const toastId = toast.loading ? toast.loading('Marking ticket as sent...') : null;
     try {
-      const { data } = await updateBooking(ticket._id, {
+      const { data } = await updateBooking(ticketId, {
         sent: true,
         pdfSent: true,
         sentAt: new Date(),
         deliveryStatus: 'sent',
         errorMessage: ''
       });
-      setSelectedTicket(data);
+
+      // Sync details modal if open
+      if (selectedTicket && selectedTicket._id === ticketId) {
+        setSelectedTicket(data);
+      }
 
       // Update cached lists
       const folderId = data.createdAt?.split('T')[0];
@@ -323,7 +390,9 @@ Jai Govinda! 🙏`;
       setFlatTickets((prev) => prev.map((t) => (t._id === data._id ? data : t)));
 
       if (toastId) toast.dismiss(toastId);
-      toast.success('Opened WhatsApp Web and marked ticket as sent!');
+      toast.success('Ticket marked as sent successfully!');
+      setShowBrowserInstructions(false);
+      setInstructedTicket(null);
 
       if (ticketFilter === 'sent') {
         fetchFlatTickets();
@@ -333,7 +402,7 @@ Jai Govinda! 🙏`;
     } catch (err) {
       if (toastId) toast.dismiss(toastId);
       console.error('Failed to update sent status:', err);
-      toast.error('Opened WhatsApp, but failed to update status on server.');
+      toast.error('Failed to update status on server.');
     }
   };
 
@@ -351,7 +420,8 @@ Jai Govinda! 🙏`;
       total: unsentTickets.length,
       success: 0,
       failed: 0,
-      currentName: ''
+      currentName: '',
+      step: 'text'
     });
 
     let successCount = 0;
@@ -362,11 +432,22 @@ Jai Govinda! 🙏`;
       setSendAllProgress(prev => ({
         ...prev,
         current: i + 1,
-        currentName: ticket.member1 + (ticket.member2 ? ` & ${ticket.member2}` : '')
+        currentName: ticket.member1 + (ticket.member2 ? ` & ${ticket.member2}` : ''),
+        step: 'text'
       }));
+
+      // Simulate steps for visual feedback in Send All progress overlay
+      const t1 = setTimeout(() => {
+        setSendAllProgress(prev => ({ ...prev, step: 'pdf' }));
+      }, 1000);
+      const t2 = setTimeout(() => {
+        setSendAllProgress(prev => ({ ...prev, step: 'voice' }));
+      }, 2200);
 
       try {
         const { data } = await sendWhatsApp(ticket._id);
+        clearTimeout(t1);
+        clearTimeout(t2);
         successCount++;
 
         setFlatTickets(prev => prev.map(t => t._id === ticket._id ? data : t));
@@ -381,6 +462,8 @@ Jai Govinda! 🙏`;
 
         setSearchResults(prev => prev.map(t => t._id === ticket._id ? data : t));
       } catch (err) {
+        clearTimeout(t1);
+        clearTimeout(t2);
         console.error(`Failed to send WhatsApp for ticket ${ticket._id}:`, err);
         failedCount++;
         const failedTicket = {
@@ -1040,71 +1123,122 @@ Jai Govinda! 🙏`;
                 {/* Send/Resend Actions */}
                 {selectedTicket.pdfUrl && (
                   <div style={{ flex: '1 1 100%', marginBottom: '0.5rem' }}>
-                    {selectedTicket.sent ? (
-                      <button 
-                        className="btn btn-primary btn-sm" 
-                        style={{
-                          width: '100%',
-                          background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
-                          boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
-                          border: 'none',
-                          color: '#fff',
-                          fontWeight: 600,
-                          padding: '0.6rem'
-                        }} 
-                        onClick={() => handleSendWhatsApp(selectedTicket._id)}
-                      >
-                        Send Again
-                      </button>
-                    ) : selectedTicket.deliveryStatus === 'failed' ? (
-                      <button 
-                        className="btn btn-primary btn-sm" 
-                        style={{
-                          width: '100%',
-                          background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
-                          boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
-                          border: 'none',
-                          color: '#fff',
-                          fontWeight: 600,
-                          padding: '0.6rem'
-                        }} 
-                        onClick={() => handleSendWhatsApp(selectedTicket._id)}
-                      >
-                        Retry Send
-                      </button>
+                    {sendingTicketId === selectedTicket._id ? (
+                      /* Sequential Sending Progress Display */
+                      <div style={{
+                        background: 'rgba(15, 23, 42, 0.6)',
+                        border: '1px solid rgba(59, 130, 246, 0.2)',
+                        borderRadius: '8px',
+                        padding: '1.25rem',
+                        marginBottom: '0.5rem',
+                        boxShadow: '0 0 15px rgba(59, 130, 246, 0.15)'
+                      }}>
+                        <h5 style={{ margin: '0 0 0.75rem 0', color: '#60A5FA', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', textAlign: 'center' }}>
+                          WhatsApp Sending Progress
+                        </h5>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                          {/* Step 1: Text Message */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                            <span style={{ color: sendingProgressStep === 'text' ? '#60A5FA' : (['pdf', 'voice', 'success'].includes(sendingProgressStep) ? '#22c55e' : 'var(--text-muted)') }}>
+                              Step 1: Text Message
+                            </span>
+                            {sendingProgressStep === 'text' && <FiActivity className="icon-spin" style={{ color: '#60A5FA' }} />}
+                            {['pdf', 'voice', 'success'].includes(sendingProgressStep) && <FiCheckCircle style={{ color: '#22c55e' }} />}
+                            {sendingProgressStep === 'failed_text' && <FiX style={{ color: '#ef4444' }} />}
+                            {!['text', 'pdf', 'voice', 'success', 'failed_text'].includes(sendingProgressStep) && <span style={{ color: 'var(--text-muted)' }}>Pending</span>}
+                          </div>
+                          {/* Step 2: Ticket PDF */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                            <span style={{ color: sendingProgressStep === 'pdf' ? '#60A5FA' : (['voice', 'success'].includes(sendingProgressStep) ? '#22c55e' : 'var(--text-muted)') }}>
+                              Step 2: Ticket PDF
+                            </span>
+                            {sendingProgressStep === 'pdf' && <FiActivity className="icon-spin" style={{ color: '#60A5FA' }} />}
+                            {['voice', 'success'].includes(sendingProgressStep) && <FiCheckCircle style={{ color: '#22c55e' }} />}
+                            {sendingProgressStep === 'failed_pdf' && <FiX style={{ color: '#ef4444' }} />}
+                            {!['pdf', 'voice', 'success', 'failed_pdf'].includes(sendingProgressStep) && <span style={{ color: 'var(--text-muted)' }}>Pending</span>}
+                          </div>
+                          {/* Step 3: Temple Voice Message */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                            <span style={{ color: sendingProgressStep === 'voice' ? '#60A5FA' : (sendingProgressStep === 'success' ? '#22c55e' : 'var(--text-muted)') }}>
+                              Step 3: Temple Voice Message
+                            </span>
+                            {sendingProgressStep === 'voice' && <FiActivity className="icon-spin" style={{ color: '#60A5FA' }} />}
+                            {sendingProgressStep === 'success' && <FiCheckCircle style={{ color: '#22c55e' }} />}
+                            {sendingProgressStep === 'failed_voice' && <FiX style={{ color: '#ef4444' }} />}
+                            {!['voice', 'success', 'failed_voice'].includes(sendingProgressStep) && <span style={{ color: 'var(--text-muted)' }}>Pending</span>}
+                          </div>
+                        </div>
+                      </div>
                     ) : (
-                      <button 
-                        className="btn btn-primary btn-sm" 
-                        style={{
-                          width: '100%',
-                          background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
-                          boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
-                          border: 'none',
-                          color: '#fff',
-                          fontWeight: 600,
-                          padding: '0.6rem'
-                        }} 
-                        onClick={() => handleSendWhatsApp(selectedTicket._id)}
-                      >
-                        Send via WhatsApp
-                      </button>
+                      /* Normal Action Buttons */
+                      <>
+                        {selectedTicket.sent ? (
+                          <button 
+                            className="btn btn-primary btn-sm" 
+                            style={{
+                              width: '100%',
+                              background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
+                              boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
+                              border: 'none',
+                              color: '#fff',
+                              fontWeight: 600,
+                              padding: '0.6rem'
+                            }} 
+                            onClick={() => handleSendWhatsApp(selectedTicket._id)}
+                          >
+                            Send Again
+                          </button>
+                        ) : selectedTicket.deliveryStatus === 'failed' ? (
+                          <button 
+                            className="btn btn-primary btn-sm" 
+                            style={{
+                              width: '100%',
+                              background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
+                              boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
+                              border: 'none',
+                              color: '#fff',
+                              fontWeight: 600,
+                              padding: '0.6rem'
+                            }} 
+                            onClick={() => handleSendWhatsApp(selectedTicket._id)}
+                          >
+                            Retry Send
+                          </button>
+                        ) : (
+                          <button 
+                            className="btn btn-primary btn-sm" 
+                            style={{
+                              width: '100%',
+                              background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
+                              boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
+                              border: 'none',
+                              color: '#fff',
+                              fontWeight: 600,
+                              padding: '0.6rem'
+                            }} 
+                            onClick={() => handleSendWhatsApp(selectedTicket._id)}
+                          >
+                            Send via WhatsApp
+                          </button>
+                        )}
+                        <button 
+                          className="btn btn-outline btn-sm" 
+                          style={{
+                            width: '100%',
+                            borderColor: '#10B981',
+                            color: '#10B981',
+                            background: 'rgba(16, 185, 129, 0.1)',
+                            boxShadow: '0 0 10px rgba(16, 185, 129, 0.2)',
+                            fontWeight: 600,
+                            padding: '0.6rem',
+                            marginTop: '0.5rem'
+                          }} 
+                          onClick={() => handleSendBrowser(selectedTicket)}
+                        >
+                          Send Browser
+                        </button>
+                      </>
                     )}
-                    <button 
-                      className="btn btn-outline btn-sm" 
-                      style={{
-                        width: '100%',
-                        borderColor: '#10B981',
-                        color: '#10B981',
-                        background: 'rgba(16, 185, 129, 0.1)',
-                        boxShadow: '0 0 10px rgba(16, 185, 129, 0.2)',
-                        fontWeight: 600,
-                        padding: '0.6rem',
-                        marginTop: '0.5rem'
-                      }} 
-                      onClick={() => handleSendBrowser(selectedTicket)}
-                    >
-                      Send Browser
-                    </button>
                   </div>
                 )}
 
@@ -1271,6 +1405,11 @@ Jai Govinda! 🙏`;
                 {sendAllProgress.currentName && sendAllProgress.current !== sendAllProgress.total && (
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                     Current: <span style={{ color: '#60A5FA' }}>{sendAllProgress.currentName}</span>
+                    {sendAllProgress.step && (
+                      <span style={{ marginLeft: '0.5rem', color: 'var(--accent)' }}>
+                        ({sendAllProgress.step === 'text' ? 'Sending Text...' : sendAllProgress.step === 'pdf' ? 'Sending PDF...' : 'Sending Voice...'})
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -1363,6 +1502,142 @@ Jai Govinda! 🙏`;
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Browser Send Instructions Modal */}
+      {showBrowserInstructions && instructedTicket && (
+        <div className="history-modal-overlay" style={{ zIndex: 10000 }}>
+          <div className="history-modal-container" style={{
+            maxWidth: '500px',
+            background: 'rgba(15, 23, 42, 0.9)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(16, 185, 129, 0.2)',
+            boxShadow: '0 0 30px rgba(16, 185, 129, 0.25)'
+          }}>
+            <div className="history-modal-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <h3 className="history-modal-title" style={{ color: '#10B981', textShadow: '0 0 10px rgba(16, 185, 129, 0.4)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
+                <FiVolume2 /> Browser Send Instructions
+              </h3>
+              <button className="history-modal-close" onClick={() => { setShowBrowserInstructions(false); setInstructedTicket(null); }}>
+                <FiX />
+              </button>
+            </div>
+            <div className="history-modal-body" style={{ color: '#f8fafc', padding: '1.25rem' }}>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 1rem 0', lineHeight: '1.4' }}>
+                Because browser-based WhatsApp cannot automatically attach media files, please follow these sequential instructions to complete the delivery:
+              </p>
+
+              {/* Steps list */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.82rem', lineHeight: '1.4' }}>
+                  <span style={{ fontWeight: 700, color: '#10B981', background: 'rgba(16, 185, 129, 0.15)', borderRadius: '50%', width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, textAlign: 'center' }}>1</span>
+                  <span>Review the pre-filled text message in the newly opened WhatsApp tab.</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.82rem', lineHeight: '1.4' }}>
+                  <span style={{ fontWeight: 700, color: '#10B981', background: 'rgba(16, 185, 129, 0.15)', borderRadius: '50%', width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, textAlign: 'center' }}>2</span>
+                  <span>Download and attach the <strong>Ticket PDF</strong> manually.</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.82rem', lineHeight: '1.4' }}>
+                  <span style={{ fontWeight: 700, color: '#10B981', background: 'rgba(16, 185, 129, 0.15)', borderRadius: '50%', width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, textAlign: 'center' }}>3</span>
+                  <span>Download and attach the <strong>Temple Voice Message</strong> manually.</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.82rem', lineHeight: '1.4' }}>
+                  <span style={{ fontWeight: 700, color: '#10B981', background: 'rgba(16, 185, 129, 0.15)', borderRadius: '50%', width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, textAlign: 'center' }}>4</span>
+                  <span>Click <strong>Send</strong> inside the WhatsApp chat window.</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.82rem', lineHeight: '1.4' }}>
+                  <span style={{ fontWeight: 700, color: '#10B981', background: 'rgba(16, 185, 129, 0.15)', borderRadius: '50%', width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, textAlign: 'center' }}>5</span>
+                  <span>Return to this website tab.</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.82rem', lineHeight: '1.4' }}>
+                  <span style={{ fontWeight: 700, color: '#10B981', background: 'rgba(16, 185, 129, 0.15)', borderRadius: '50%', width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, textAlign: 'center' }}>6</span>
+                  <span>Click the green <strong>Mark as Sent</strong> button below to finalize.</span>
+                </div>
+              </div>
+
+              {/* Media Downloads Area */}
+              <div style={{
+                background: 'rgba(15, 23, 42, 0.5)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '8px',
+                padding: '1rem',
+                marginBottom: '1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem'
+              }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#10B981', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Required Media Attachments
+                </div>
+                
+                <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                  <a
+                    href={instructedTicket.pdfUrl}
+                    download={`Temple_Ticket_${instructedTicket.member1.replace(/\s+/g, '_')}.pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-outline btn-sm"
+                    style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontSize: '0.8rem', padding: '0.5rem', textDecoration: 'none', color: '#60A5FA', borderColor: 'rgba(96, 165, 250, 0.3)', background: 'rgba(96, 165, 250, 0.05)' }}
+                  >
+                    <FiFileText /> Download PDF
+                  </a>
+                  
+                  {voiceMessageUrl ? (
+                    <a
+                      href={voiceMessageUrl}
+                      download="temple_voice_message.mp3"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-outline btn-sm"
+                      style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontSize: '0.8rem', padding: '0.5rem', textDecoration: 'none', color: '#F59E0B', borderColor: 'rgba(245, 158, 11, 0.3)', background: 'rgba(245, 158, 11, 0.05)' }}
+                    >
+                      <FiMusic /> Download Voice
+                    </a>
+                  ) : (
+                    <button
+                      className="btn btn-outline btn-sm"
+                      disabled
+                      style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontSize: '0.8rem', padding: '0.5rem', opacity: 0.5, cursor: 'not-allowed' }}
+                      title="No voice message configured in Settings"
+                    >
+                      <FiMusic /> Voice (Not Set)
+                    </button>
+                  )}
+                </div>
+                {!voiceMessageUrl && (
+                  <div style={{ fontSize: '0.7rem', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <FiAlertCircle /> Note: Upload the voice message in Settings to enable voice download.
+                  </div>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  className="btn btn-success"
+                  onClick={handleMarkAsSentManually}
+                  style={{
+                    flex: 2,
+                    background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
+                    boxShadow: '0 0 15px rgba(16, 185, 129, 0.4)',
+                    border: 'none',
+                    fontWeight: 600,
+                    padding: '0.65rem'
+                  }}
+                >
+                  Mark as Sent
+                </button>
+                <button
+                  className="btn btn-outline"
+                  onClick={() => { setShowBrowserInstructions(false); setInstructedTicket(null); }}
+                  style={{ flex: 1, padding: '0.65rem' }}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

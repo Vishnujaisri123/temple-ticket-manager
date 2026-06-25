@@ -605,17 +605,26 @@ const sendWhatsApp = async (req, res) => {
       return res.status(400).json({ message: 'PDF URL is missing. Upload PDF first.' });
     }
 
+    // Retrieve settings for the voice message URL
+    const Settings = require('../models/Settings');
+    const settings = await Settings.findOne({ key: 'global' });
+    const voiceMessageUrl = settings ? settings.templeVoiceMessageUrl : '';
+
+    if (!voiceMessageUrl) {
+      const errMsg = 'Temple voice message is not configured. Please upload a voice message in Settings first.';
+      booking.deliveryStatus = 'failed';
+      booking.errorMessage = errMsg;
+      await booking.save();
+      return res.status(400).json({ message: errMsg });
+    }
+
     // 1. Phone number cleaning: Read phone number and remove country code prefix 91 if present.
-    // Example: 917207202844 -> 7207202844
     const originalPhone = booking.phone || '';
     const cleanPhone = (originalPhone.startsWith('91') && originalPhone.length === 12)
       ? originalPhone.slice(2)
       : originalPhone;
     
-    // Store cleaned number temporarily during sending
     console.log(`[WhatsApp API] Cleaned recipient phone number for sending: ${cleanPhone}`);
-
-    // Prepend 91 for international format required by Meta WhatsApp Cloud API
     const recipient = '91' + cleanPhone;
 
     // 2. Build template message text
@@ -628,43 +637,70 @@ const sendWhatsApp = async (req, res) => {
       : '—';
     const timeslot = booking.slotTime || '—';
 
-    const messageText = `🙏 శ్రీ వేంకటేశ్వర స్వామి వారి ఆశీస్సులతో 🙏
+    const messageText = `🛕 *శ్రీ వేంకటేశ్వర స్వామి వారి ఆశీస్సులతో* 🛕
 
-నమస్కారం ${booking.member1} గారు,
+🌺 నమస్కారం *${booking.member1}* గారు,
 
-మీ వడపల్లి శ్రీ వేంకటేశ్వర స్వామి వారి టికెట్ సిద్ధంగా ఉంది.
+మీ *వడపల్లి శ్రీ వేంకటేశ్వర స్వామి వారి అష్టోత్తర సేవ (Astothram) టికెట్* సిద్ధంగా ఉంది.
 
-📅 తేదీ | Date: ${bookedDate}
-🕘 సమయం | Time: ${timeslot}
+🗓️ *తేదీ | Date:* ${bookedDate}
 
-📄 మీ టికెట్ PDF జతచేయబడింది.
-📄 Your ticket PDF is attached.
+🕘 *సమయం | Time:* ${timeslot}
 
-⚠️ దయచేసి టికెట్కు ప్రింట్ తీసుకుని దేవాలయానికి తీసుకురండి.
-⚠️ Please take a printout of the ticket before coming to the temple.
+🖨️ *దయచేసి ఈ టికెట్కు ప్రింట్ తీసుకుని దేవాలయానికి తప్పనిసరిగా తీసుకురండి.*
 
-🌸 పూజా సామగ్రి (Pooja Items) కావాలంటే, దయచేసి **బుక్ చేసిన తేదీకి 3 రోజుల ముందు** ఈ నంబర్కు సంప్రదించండి: **8331923995**
+🖨️ *Please take a printout of this ticket and bring it with you to the temple.*
 
-🌸 If you require Pooja items, please contact **8331923995** at least **3 days before your booked date**.
+🪔 *పూజా సామగ్రి (Pooja Items) కావాలంటే, బుక్ చేసిన తేదీకి కనీసం 3 రోజుల ముందు ఈ నంబర్ను సంప్రదించండి: 📞 8331923995*
 
-ధన్యవాదాలు 🙏
-Thank You 🙏
+🪔 *If you require Pooja items, please contact 📞 8331923995 at least 3 days before your booked date.*
 
-**వడపల్లి శ్రీ వేంకటేశ్వర స్వామి దేవస్థానం**`;
+🙏 *ధన్యవాదాలు | Thank You*
+
+*🛕 వడపల్లి శ్రీ వేంకటేశ్వర స్వామి దేవస్థానం 🛕*`;
 
     const token = process.env.WHATSAPP_ACCESS_TOKEN;
     const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
     if (!token || !phoneId) {
       console.error('[WhatsApp API] Missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID env variables.');
+      const errMsg = 'WhatsApp credentials not configured on server.';
       booking.deliveryStatus = 'failed';
-      booking.errorMessage = 'WhatsApp credentials not configured on server.';
+      booking.errorMessage = errMsg;
       await booking.save();
       return res.status(500).json({ message: 'WhatsApp API credentials missing.' });
     }
 
-    // 3. Make request to official Meta WhatsApp API
-    const response = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
+    // 3. Make request to official Meta WhatsApp API — MESSAGE 1: Text Message
+    console.log(`[WhatsApp API] Sending message 1 (Text) to ${recipient}...`);
+    const textResponse = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: recipient,
+        type: 'text',
+        text: { body: messageText }
+      })
+    });
+
+    const textData = await textResponse.json();
+    if (!textResponse.ok) {
+      console.error('[WhatsApp API] Message 1 (Text) failed:', textData);
+      const errMsg = textData.error?.message || 'Meta API text message request failed';
+      booking.deliveryStatus = 'failed';
+      booking.errorMessage = `Step 1 (Text) failed: ${errMsg}`;
+      await booking.save();
+      return res.status(500).json({ message: errMsg, error: textData.error });
+    }
+
+    // 4. Make request to official Meta WhatsApp API — MESSAGE 2: PDF Document
+    console.log(`[WhatsApp API] Sending message 2 (PDF) to ${recipient}...`);
+    const pdfResponse = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -677,40 +713,64 @@ Thank You 🙏
         type: 'document',
         document: {
           link: booking.pdfUrl,
-          caption: messageText,
           filename: `Temple_Ticket_${booking.member1.replace(/\s+/g, '_')}.pdf`
         }
       })
     });
 
-    const responseData = await response.json();
-
-    if (!response.ok) {
-      console.error('[WhatsApp API] Meta API responded with error:', responseData);
-      const errMsg = responseData.error?.message || 'Meta API request failed';
+    const pdfData = await pdfResponse.json();
+    if (!pdfResponse.ok) {
+      console.error('[WhatsApp API] Message 2 (PDF) failed:', pdfData);
+      const errMsg = pdfData.error?.message || 'Meta API PDF request failed';
       booking.deliveryStatus = 'failed';
-      booking.errorMessage = errMsg;
+      booking.errorMessage = `Step 2 (PDF) failed: ${errMsg}`;
       await booking.save();
-      return res.status(500).json({ message: errMsg, error: responseData.error });
+      return res.status(500).json({ message: errMsg, error: pdfData.error });
     }
 
-    // 4. Update status after success
-    const messageId = responseData.messages?.[0]?.id || '';
+    // 5. Make request to official Meta WhatsApp API — MESSAGE 3: Voice Message (Audio)
+    console.log(`[WhatsApp API] Sending message 3 (Voice) to ${recipient}...`);
+    const audioResponse = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: recipient,
+        type: 'audio',
+        audio: {
+          link: voiceMessageUrl
+        }
+      })
+    });
+
+    const audioData = await audioResponse.json();
+    if (!audioResponse.ok) {
+      console.error('[WhatsApp API] Message 3 (Voice) failed:', audioData);
+      const errMsg = audioData.error?.message || 'Meta API voice message request failed';
+      booking.deliveryStatus = 'failed';
+      booking.errorMessage = `Step 3 (Voice) failed: ${errMsg}`;
+      await booking.save();
+      return res.status(500).json({ message: errMsg, error: audioData.error });
+    }
+
+    // 6. Update status after all 3 messages successfully accepted/sent
+    const messageId = audioData.messages?.[0]?.id || pdfData.messages?.[0]?.id || textData.messages?.[0]?.id || '';
     booking.sent = true;
     booking.sentAt = new Date();
     booking.deliveryStatus = 'sent';
     booking.whatsappMessageId = messageId;
     booking.errorMessage = '';
-    
-    // For backwards compatibility
-    booking.pdfSent = true;
-    
+    booking.pdfSent = true; // Backwards compatibility
     await booking.save();
 
-    console.log(`[WhatsApp API] Successfully sent ticket to ${recipient}. Msg ID: ${messageId}`);
-    res.json({ message: 'WhatsApp message sent successfully', booking });
+    console.log(`[WhatsApp API] Successfully sent 3-message sequence to ${recipient}. Msg ID: ${messageId}`);
+    res.json({ message: 'WhatsApp message sequence sent successfully', booking });
   } catch (err) {
-    console.error('[WhatsApp API] System error while sending message:', err.message);
+    console.error('[WhatsApp API] System error in sending sequence:', err.message);
     const booking = await Booking.findById(id).catch(() => null);
     if (booking) {
       booking.deliveryStatus = 'failed';
