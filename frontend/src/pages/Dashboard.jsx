@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getBookings, getStats, claimOrphans, getAutoDeletedLogs, getAudioSettings, uploadAudio } from '../services/api';
+import { getBookings, getStats, claimOrphans, getAutoDeletedLogs, getAudioSettings, uploadAudio, updateBooking, sendWhatsApp } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from '../components/Toast';
 import BookingTable from '../components/BookingTable';
@@ -16,6 +16,13 @@ import {
   FiCheckCircle,
   FiSend,
   FiVolume2,
+  FiSettings,
+  FiPlay,
+  FiPause,
+  FiStopCircle,
+  FiRefreshCw,
+  FiAlertTriangle,
+  FiInfo,
 } from 'react-icons/fi';
 import { LuLayoutDashboard, LuHistory } from 'react-icons/lu';
 import { HiOutlineDocumentReport, HiTrendingUp } from 'react-icons/hi';
@@ -40,8 +47,25 @@ const Dashboard = () => {
   const [selectedAudioFile, setSelectedAudioFile] = useState(null);
   const [uploadingAudio, setUploadingAudio] = useState(false);
 
+  // Queue and Automation States
+  const [autoSendInterval, setAutoSendInterval] = useState(
+    parseInt(localStorage.getItem('autoSendInterval')) || 180000
+  );
+  const [autoSendMode, setAutoSendMode] = useState(
+    localStorage.getItem('autoSendMode') || 'api'
+  );
+
+  const [queueIsRunning, setQueueIsRunning] = useState(false);
+  const [queueTickets, setQueueTickets] = useState([]);
+  const [queueCurrentIndex, setQueueCurrentIndex] = useState(0);
+  const [queueProgress, setQueueProgress] = useState({ completed: 0, total: 0, success: 0, failed: 0 });
+  const [queueCurrentTicket, setQueueCurrentTicket] = useState(null);
+  const [queueTimer, setQueueTimer] = useState(null);
+  const [queueWaitTimeLeft, setQueueWaitTimeLeft] = useState(0);
+  const [queueConfirmWaiting, setQueueConfirmWaiting] = useState(false);
+
   useEffect(() => {
-    if (page === 'dashboard') {
+    if (page === 'dashboard' || page === 'settings') {
       getAudioSettings()
         .then(({ data }) => {
           setCurrentAudioUrl(data.audioUrl || '');
@@ -78,6 +102,437 @@ const Dashboard = () => {
       setUploadingAudio(false);
     }
   };
+
+  // Persist settings changes
+  const handleIntervalChange = (val) => {
+    const ms = parseInt(val);
+    setAutoSendInterval(ms);
+    localStorage.setItem('autoSendInterval', ms);
+  };
+
+  const handleModeChange = (val) => {
+    setAutoSendMode(val);
+    localStorage.setItem('autoSendMode', val);
+  };
+
+  // Start the Queue
+  const startQueue = (tickets) => {
+    if (tickets.length === 0) {
+      toast.error('No tickets to send');
+      return;
+    }
+
+    const sortedTickets = [...tickets].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+    setQueueTickets(sortedTickets);
+    setQueueCurrentIndex(0);
+    setQueueProgress({
+      completed: 0,
+      total: sortedTickets.length,
+      success: 0,
+      failed: 0
+    });
+    setQueueIsRunning(true);
+    setQueueConfirmWaiting(false);
+    
+    processQueueTicket(sortedTickets, 0);
+  };
+
+  // Process a ticket
+  const processQueueTicket = async (ticketsList, index) => {
+    if (index >= ticketsList.length) {
+      setQueueIsRunning(false);
+      setQueueCurrentTicket(null);
+      toast.success('Auto Send Queue completed!');
+      return;
+    }
+
+    const ticket = ticketsList[index];
+    setQueueCurrentTicket(ticket);
+    setQueueCurrentIndex(index);
+
+    try {
+      await updateBooking(ticket._id, { queueStatus: 'sending' });
+      window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: { ...ticket, queueStatus: 'sending' } }));
+    } catch (err) {
+      console.error('Failed to set status to sending:', err);
+    }
+
+    if (autoSendMode === 'api') {
+      try {
+        const { data } = await sendWhatsApp(ticket._id);
+        
+        await updateBooking(ticket._id, { 
+          queueStatus: 'sent', 
+          sent: true, 
+          pdfSent: true, 
+          sentAt: new Date().toISOString(), 
+          deliveryStatus: 'sent', 
+          errorMessage: '' 
+        });
+
+        const updatedTicket = { 
+          ...ticket, 
+          queueStatus: 'sent', 
+          sent: true, 
+          pdfSent: true, 
+          sentAt: new Date().toISOString(), 
+          deliveryStatus: 'sent', 
+          errorMessage: '' 
+        };
+        window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: updatedTicket }));
+        
+        setQueueProgress(prev => ({
+          ...prev,
+          completed: prev.completed + 1,
+          success: prev.success + 1
+        }));
+
+        toast.success(`Sent ticket to ${ticket.member1}`);
+
+        startIntervalCountdown(ticketsList, index + 1);
+      } catch (err) {
+        const errMsg = err.response?.data?.message || err.message || 'WhatsApp sending failed';
+        const nextRetryCount = (ticket.queueRetryCount || 0) + 1;
+
+        if (nextRetryCount < 3) {
+          await updateBooking(ticket._id, { 
+            queueStatus: 'pending', 
+            queueRetryCount: nextRetryCount, 
+            queueErrorMessage: errMsg 
+          });
+
+          const updatedTicket = { 
+            ...ticket, 
+            queueStatus: 'pending', 
+            queueRetryCount: nextRetryCount, 
+            queueErrorMessage: errMsg 
+          };
+          window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: updatedTicket }));
+
+          toast.warning(`Failed sending to ${ticket.member1}. Retry 1/2 scheduled in 5 mins.`);
+
+          setTimeout(() => {
+            retryTicketBackground(ticket);
+          }, 300000); // 5 minutes
+
+          setQueueProgress(prev => ({
+            ...prev,
+            completed: prev.completed + 1,
+            failed: prev.failed + 1
+          }));
+
+          startIntervalCountdown(ticketsList, index + 1);
+        } else {
+          await updateBooking(ticket._id, { 
+            queueStatus: 'failed', 
+            queueRetryCount: nextRetryCount, 
+            queueErrorMessage: errMsg,
+            sent: false
+          });
+
+          const updatedTicket = { 
+            ...ticket, 
+            queueStatus: 'failed', 
+            queueRetryCount: nextRetryCount, 
+            queueErrorMessage: errMsg,
+            sent: false
+          };
+          window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: updatedTicket }));
+
+          toast.error(`Failed sending to ${ticket.member1} after 3 attempts. Moved to Failed Queue.`);
+
+          setQueueProgress(prev => ({
+            ...prev,
+            completed: prev.completed + 1,
+            failed: prev.failed + 1
+          }));
+
+          startIntervalCountdown(ticketsList, index + 1);
+        }
+      }
+    } else {
+      // Browser Mode
+      setQueueConfirmWaiting(true);
+
+      const visitDateStr = ticket.visitDate 
+        ? new Date(ticket.visitDate).toLocaleDateString('en-IN', {
+            day: 'numeric', month: 'long', year: 'numeric',
+          })
+        : '—';
+      const timeslot = ticket.slotTime || '—';
+      
+      let phone = ticket.phone.replace(/\D/g, '');
+      if (phone.startsWith('0')) phone = phone.slice(1);
+      if (!phone.startsWith('91')) phone = '91' + phone;
+
+      const audioPart = currentAudioUrl
+        ? `\n\n🎵 Listen to the voice message 👇\n${currentAudioUrl}`
+        : '';
+
+      const message = `🛕 శ్రీ వేంకటేశ్వర స్వామి వారి ఆశీస్సులతో 🛕
+
+🌺 నమస్కారం ${ticket.member1} గారు,
+
+మీ వడపల్లి శ్రీ వేంకటేశ్వర స్వామి వారి అష్టోత్తర సేవ (Astothram) టికెట్ సిద్ధంగా ఉంది.
+
+🗓️ తేదీ | Date: ${visitDateStr}
+
+🕘 సమయం | Time: ${timeslot}
+
+🖨️ దయచేసి ఈ టికెట్కు ప్రింట్ తీసుకుని దేవాలయానికి తప్పనిసరిగా తీసుకురండి.
+
+🖨️ Please take a printout of this ticket and bring it with you to the temple.
+
+🪔 పూజా సామగ్రి (Pooja Items) కావాలంటే, బుక్ చేసిన తేదీకి కనీసం 3 రోజుల ముందు ఈ నంబర్ను సంప్రదించండి: 📞 8331923995
+
+🪔 If you require Pooja items, please contact 📞 8331923995 at least 3 days before your booked date.
+
+🙏 ధన్యవాదాలు | Thank You
+
+🛕 వడపల్లి శ్రీ వేంకటేశ్వర స్వామి దేవస్థానం🛕
+
+📄 Download your ticket here 👇
+${ticket.pdfUrl}${audioPart}`;
+
+      const url = `whatsapp://send?phone=${phone}&text=${encodeURIComponent(message)}`;
+      window.location.href = url;
+
+      toast.info(`Opened WhatsApp Web for ${ticket.member1}. Please attach files, send, and confirm.`);
+    }
+  };
+
+  // Background retry
+  const retryTicketBackground = async (ticket) => {
+    try {
+      await updateBooking(ticket._id, { queueStatus: 'sending' });
+      await sendWhatsApp(ticket._id);
+      
+      await updateBooking(ticket._id, { 
+        queueStatus: 'sent', 
+        sent: true, 
+        pdfSent: true, 
+        sentAt: new Date().toISOString(), 
+        deliveryStatus: 'sent', 
+        errorMessage: '' 
+      });
+
+      const updatedTicket = { 
+        ...ticket, 
+        queueStatus: 'sent', 
+        sent: true, 
+        pdfSent: true, 
+        sentAt: new Date().toISOString(), 
+        deliveryStatus: 'sent', 
+        errorMessage: '' 
+      };
+      window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: updatedTicket }));
+
+      toast.success(`Background retry succeeded: Sent ticket to ${ticket.member1}`);
+    } catch (err) {
+      const errMsg = err.response?.data?.message || err.message || 'WhatsApp sending failed';
+      const nextRetryCount = (ticket.queueRetryCount || 0) + 1;
+
+      if (nextRetryCount < 3) {
+        await updateBooking(ticket._id, { 
+          queueStatus: 'pending', 
+          queueRetryCount: nextRetryCount, 
+          queueErrorMessage: errMsg 
+        });
+
+        const updatedTicket = { 
+          ...ticket, 
+          queueStatus: 'pending', 
+          queueRetryCount: nextRetryCount, 
+          queueErrorMessage: errMsg 
+        };
+        window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: updatedTicket }));
+
+        toast.warning(`Background retry failed for ${ticket.member1}. Retrying again in 5 minutes.`);
+        
+        setTimeout(() => {
+          retryTicketBackground({ ...ticket, queueRetryCount: nextRetryCount });
+        }, 300000);
+      } else {
+        await updateBooking(ticket._id, { 
+          queueStatus: 'failed', 
+          queueRetryCount: nextRetryCount, 
+          queueErrorMessage: errMsg,
+          sent: false
+        });
+
+        const updatedTicket = { 
+          ...ticket, 
+          queueStatus: 'failed', 
+          queueRetryCount: nextRetryCount, 
+          queueErrorMessage: errMsg,
+          sent: false
+        };
+        window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: updatedTicket }));
+
+        toast.error(`Background retry failed for ${ticket.member1} after 3 attempts. Moved to Failed Queue.`);
+      }
+    }
+  };
+
+  // Start Interval countdown
+  const startIntervalCountdown = (ticketsList, nextIndex) => {
+    if (queueTimer) clearInterval(queueTimer);
+
+    let timeLeft = autoSendInterval / 1000;
+    setQueueWaitTimeLeft(timeLeft);
+
+    const intervalTimer = setInterval(() => {
+      timeLeft--;
+      setQueueWaitTimeLeft(timeLeft);
+      if (timeLeft <= 0) {
+        clearInterval(intervalTimer);
+        processQueueTicket(ticketsList, nextIndex);
+      }
+    }, 1000);
+
+    setQueueTimer(intervalTimer);
+  };
+
+  // Stop Queue
+  const stopQueue = () => {
+    if (queueTimer) {
+      clearInterval(queueTimer);
+    }
+    setQueueIsRunning(false);
+    setQueueTimer(null);
+    setQueueWaitTimeLeft(0);
+    toast.info('Queue paused by administrator');
+  };
+
+  // Resume Queue
+  const resumeQueue = () => {
+    if (queueTickets.length === 0) {
+      toast.error('No tickets in queue');
+      return;
+    }
+    setQueueIsRunning(true);
+    setQueueConfirmWaiting(false);
+    processQueueTicket(queueTickets, queueCurrentIndex);
+  };
+
+  // Confirm Browser Sent
+  const handleConfirmSent = async () => {
+    if (!queueCurrentTicket) return;
+    const ticket = queueCurrentTicket;
+    setQueueConfirmWaiting(false);
+
+    try {
+      await updateBooking(ticket._id, { 
+        queueStatus: 'sent', 
+        sent: true, 
+        pdfSent: true, 
+        sentAt: new Date().toISOString(), 
+        deliveryStatus: 'sent', 
+        errorMessage: '' 
+      });
+
+      const updatedTicket = { 
+        ...ticket, 
+        queueStatus: 'sent', 
+        sent: true, 
+        pdfSent: true, 
+        sentAt: new Date().toISOString(), 
+        deliveryStatus: 'sent', 
+        errorMessage: '' 
+      };
+      window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: updatedTicket }));
+
+      setQueueProgress(prev => ({
+        ...prev,
+        completed: prev.completed + 1,
+        success: prev.success + 1
+      }));
+
+      toast.success(`Confirmed sent for ${ticket.member1}`);
+
+      startIntervalCountdown(queueTickets, queueCurrentIndex + 1);
+    } catch (err) {
+      toast.error('Failed to confirm ticket status');
+    }
+  };
+
+  // Confirm Browser Failed
+  const handleConfirmFailed = async () => {
+    if (!queueCurrentTicket) return;
+    const ticket = queueCurrentTicket;
+    setQueueConfirmWaiting(false);
+
+    const errMsg = 'Administrator marked as failed in Browser Mode';
+    const nextRetryCount = (ticket.queueRetryCount || 0) + 1;
+
+    try {
+      if (nextRetryCount < 3) {
+        await updateBooking(ticket._id, { 
+          queueStatus: 'pending', 
+          queueRetryCount: nextRetryCount, 
+          queueErrorMessage: errMsg 
+        });
+
+        const updatedTicket = { 
+          ...ticket, 
+          queueStatus: 'pending', 
+          queueRetryCount: nextRetryCount, 
+          queueErrorMessage: errMsg 
+        };
+        window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: updatedTicket }));
+
+        toast.warning(`Marked failed for ${ticket.member1}. Retry 1/2 scheduled in 5 mins.`);
+
+        setTimeout(() => {
+          retryTicketBackground(ticket);
+        }, 300000);
+
+        setQueueProgress(prev => ({
+          ...prev,
+          completed: prev.completed + 1,
+          failed: prev.failed + 1
+        }));
+
+        startIntervalCountdown(queueTickets, queueCurrentIndex + 1);
+      } else {
+        await updateBooking(ticket._id, { 
+          queueStatus: 'failed', 
+          queueRetryCount: nextRetryCount, 
+          queueErrorMessage: errMsg,
+          sent: false
+        });
+
+        const updatedTicket = { 
+          ...ticket, 
+          queueStatus: 'failed', 
+          queueRetryCount: nextRetryCount, 
+          queueErrorMessage: errMsg,
+          sent: false
+        };
+        window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: updatedTicket }));
+
+        toast.error(`Marked failed for ${ticket.member1} after 3 attempts. Moved to Failed Queue.`);
+
+        setQueueProgress(prev => ({
+          ...prev,
+          completed: prev.completed + 1,
+          failed: prev.failed + 1
+        }));
+
+        startIntervalCountdown(queueTickets, queueCurrentIndex + 1);
+      }
+    } catch (err) {
+      toast.error('Failed to confirm ticket status');
+    }
+  };
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (queueTimer) clearInterval(queueTimer);
+    };
+  }, [queueTimer]);
 
   const checkAutoDeletedTickets = useCallback(async () => {
     try {
@@ -119,6 +574,8 @@ const Dashboard = () => {
         setHistoryFilter(filterParam || 'all');
       } else if (path === '/daily') {
         setPage('daily');
+      } else if (path === '/settings') {
+        setPage('settings');
       } else if (path === '/' || path === '/login') {
         setPage('dashboard');
       }
@@ -138,6 +595,9 @@ const Dashboard = () => {
     } else if (pageName === 'daily') {
       window.history.pushState({}, '', '/daily');
       setPage('daily');
+    } else if (pageName === 'settings') {
+      window.history.pushState({}, '', '/settings');
+      setPage('settings');
     } else {
       window.history.pushState({}, '', '/');
       setPage('dashboard');
@@ -246,6 +706,9 @@ const Dashboard = () => {
             <button className={`nav-tab ${page === 'daily' ? 'active' : ''}`} onClick={() => navigateTo('daily')}>
               <HiOutlineDocumentReport className="icon-hover-scale" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} /> Reports
             </button>
+            <button className={`nav-tab ${page === 'settings' ? 'active' : ''}`} onClick={() => navigateTo('settings')}>
+              <FiSettings className="icon-hover-scale" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} /> Settings
+            </button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button className="btn-mode" onClick={() => setDarkMode(!darkMode)}>
@@ -261,7 +724,67 @@ const Dashboard = () => {
 
       {page === 'history' ? (
         <main className="main-content">
-          <History initialFilter={historyFilter} initialSubSection={historySubSection} key={`${historyFilter}-${historySubSection}`} />
+          <History 
+            initialFilter={historyFilter} 
+            initialSubSection={historySubSection} 
+            key={`${historyFilter}-${historySubSection}`}
+            queueIsRunning={queueIsRunning}
+            startQueue={startQueue}
+            stopQueue={stopQueue}
+            queueTickets={queueTickets}
+            queueCurrentTicket={queueCurrentTicket}
+          />
+        </main>
+      ) : page === 'settings' ? (
+        <main className="main-content">
+          <div className="dashboard-header">
+            <div className="dashboard-title">
+              <h2>Settings</h2>
+              <p>Configure temple automation, voice messages, and queue parameters</p>
+            </div>
+          </div>
+
+          <div className="settings-section-card">
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--accent)', marginTop: 0, fontSize: '1.05rem', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '0.5rem', textTransform: 'uppercase' }}>
+              <FiSettings /> WhatsApp Automation Settings
+            </h3>
+            
+            <div className="settings-row">
+              <div className="settings-label">
+                <span className="settings-title-text">Auto Send Mode</span>
+                <span className="settings-desc-text">Choose between fully automated API sending or manual browser sending.</span>
+              </div>
+              <div>
+                <select 
+                  className="settings-control-select" 
+                  value={autoSendMode} 
+                  onChange={(e) => handleModeChange(e.target.value)}
+                >
+                  <option value="api">Auto Send Queue (API)</option>
+                  <option value="browser">Auto Send Queue (Browser)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="settings-row">
+              <div className="settings-label">
+                <span className="settings-title-text">Auto Send Interval</span>
+                <span className="settings-desc-text">Configured delay between sequential ticket sends in the queue.</span>
+              </div>
+              <div>
+                <select 
+                  className="settings-control-select" 
+                  value={autoSendInterval} 
+                  onChange={(e) => handleIntervalChange(e.target.value)}
+                >
+                  <option value="30000">30 seconds</option>
+                  <option value="60000">1 minute</option>
+                  <option value="180000">3 minutes</option>
+                  <option value="300000">5 minutes</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </main>
       ) : page === 'daily' ? (
         <main className="main-content">
@@ -463,6 +986,90 @@ const Dashboard = () => {
         </main>
       )}
 
+      {/* Floating Queue Dashboard Panel (Shadow Monarch Style) */}
+      {queueTickets.length > 0 && (
+        <div className={`floating-queue-panel ${queueIsRunning ? 'running' : 'paused'} ${queueConfirmWaiting ? 'confirm-waiting' : ''}`}>
+          <div className="queue-panel-header">
+            <div className="queue-panel-title">
+              <FiActivity className={queueIsRunning ? 'energy-pulse' : ''} style={{ color: queueConfirmWaiting ? '#10b981' : queueIsRunning ? '#06b6d4' : '#f59e0b' }} />
+              Auto Send Queue
+            </div>
+            <div className="queue-status-text" style={{ 
+              background: queueConfirmWaiting ? 'rgba(16, 185, 129, 0.15)' : queueIsRunning ? 'rgba(6, 182, 212, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+              color: queueConfirmWaiting ? '#10b981' : queueIsRunning ? '#06b6d4' : '#f59e0b'
+            }}>
+              {queueConfirmWaiting ? 'Waiting Confirm' : queueIsRunning ? 'Running' : 'Paused'}
+            </div>
+          </div>
+
+          <div style={{ fontSize: '0.85rem', marginBottom: '0.4rem' }}>
+            <strong>Progress:</strong> {queueProgress.completed} / {queueProgress.total} tickets processed
+          </div>
+
+          <div className="queue-progress-container">
+            <div className="queue-progress-bar" style={{ width: `${(queueProgress.completed / queueProgress.total) * 100}%` }} />
+          </div>
+
+          {queueCurrentTicket && (
+            <div className="queue-active-ticket">
+              <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>
+                {queueConfirmWaiting ? 'Action Required' : 'Processing Ticket'}
+              </div>
+              <div style={{ fontWeight: 700, fontSize: '0.92rem', marginTop: '0.15rem', color: 'var(--accent)' }}>
+                {queueCurrentTicket.member1}
+              </div>
+              <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', marginTop: '0.15rem' }}>
+                Phone: {queueCurrentTicket.phone} | Slot: {queueCurrentTicket.slotTime || '—'}
+              </div>
+            </div>
+          )}
+
+          <div className="queue-meta-row">
+            <div>
+              {queueIsRunning && !queueConfirmWaiting && queueWaitTimeLeft > 0 && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', color: '#06b6d4' }}>
+                  <FiRefreshCw className="icon-spin" /> Next in {queueWaitTimeLeft}s
+                </span>
+              )}
+              {queueConfirmWaiting && (
+                <span style={{ color: '#10b981', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                  <FiInfo /> Prefilled tab opened!
+                </span>
+              )}
+            </div>
+            <div style={{ fontWeight: 600 }}>
+              Est. Remaining: {
+                queueIsRunning 
+                  ? `${Math.max(1, Math.ceil((((queueProgress.total - queueProgress.completed) * autoSendInterval / 1000) + (queueIsRunning && !queueConfirmWaiting ? queueWaitTimeLeft : 0)) / 60))} mins`
+                  : '—'
+              }
+            </div>
+          </div>
+
+          <div className="queue-controls">
+            {queueIsRunning ? (
+              <button className="queue-btn queue-btn-stop" onClick={stopQueue}>
+                <FiStopCircle /> Stop Queue
+              </button>
+            ) : (
+              <button className="queue-btn queue-btn-resume" onClick={resumeQueue} disabled={queueProgress.completed >= queueProgress.total}>
+                <FiPlay /> Resume Queue
+              </button>
+            )}
+
+            {queueConfirmWaiting && (
+              <>
+                <button className="queue-btn queue-btn-confirm" onClick={handleConfirmSent}>
+                  Confirm Sent
+                </button>
+                <button className="queue-btn queue-btn-stop" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }} onClick={handleConfirmFailed}>
+                  Failed
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );

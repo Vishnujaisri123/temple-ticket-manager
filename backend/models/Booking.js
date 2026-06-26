@@ -27,6 +27,9 @@ const bookingSchema = new mongoose.Schema(
     localPdfPath: { type: String, default: '' },
     reminderSent: { type: Boolean, default: false },
     sentAt: { type: Date, default: null },
+    queueStatus: { type: String, enum: ['pending', 'sending', 'sent', 'failed'], default: 'pending' },
+    queueRetryCount: { type: Number, default: 0 },
+    queueErrorMessage: { type: String, default: '' },
   },
   { timestamps: true }
 );

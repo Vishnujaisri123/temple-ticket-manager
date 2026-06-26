@@ -38,7 +38,15 @@ const formatDateStr = (dateStr) => {
   return dateStr;
 };
 
-const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
+const History = ({ 
+  initialFilter = 'all', 
+  initialSubSection = 'weekly',
+  queueIsRunning,
+  startQueue,
+  stopQueue,
+  queueTickets,
+  queueCurrentTicket
+}) => {
   const [folders, setFolders] = useState([]);
   const [stats, setStats] = useState({ count: 0, totalAmount: 0, totalProfit: 0, paidCount: 0, unpaidCount: 0, completedCount: 0, sentCount: 0 });
   const [loading, setLoading] = useState(true);
@@ -92,6 +100,50 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
       })
       .catch(() => {});
   }, []);
+
+  // Reactive listener for real-time queue and PDF upload updates across all tabs
+  useEffect(() => {
+    const handleBookingUpdated = (e) => {
+      const updated = e.detail;
+      
+      setFlatTickets((prev) => prev.map((t) => t._id === updated._id ? { ...t, ...updated } : t));
+      setSearchResults((prev) => prev.map((t) => t._id === updated._id ? { ...t, ...updated } : t));
+      setSelectedTicket((prev) => (prev && prev._id === updated._id) ? { ...prev, ...updated } : prev);
+      
+      const folderId = updated.createdAt?.split('T')[0];
+      if (folderId) {
+        setFolderTickets((prev) => {
+          if (!prev[folderId]) return prev;
+          return {
+            ...prev,
+            [folderId]: prev[folderId].map((t) => t._id === updated._id ? { ...t, ...updated } : t)
+          };
+        });
+      }
+    };
+
+    window.addEventListener('bookingUpdated', handleBookingUpdated);
+    return () => window.removeEventListener('bookingUpdated', handleBookingUpdated);
+  }, []);
+
+  const handleRetryQueueSend = async (ticketId) => {
+    const toastId = toast.loading ? toast.loading('Re-adding ticket to sending queue...') : null;
+    try {
+      const { data } = await updateBooking(ticketId, {
+        queueStatus: 'pending',
+        queueRetryCount: 0,
+        errorMessage: ''
+      });
+      setSelectedTicket(data);
+      window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: data }));
+      if (toastId) toast.dismiss(toastId);
+      toast.success('Ticket successfully re-added to queue!');
+      fetchFlatTickets();
+    } catch (err) {
+      if (toastId) toast.dismiss(toastId);
+      toast.error('Failed to re-add ticket to queue');
+    }
+  };
 
   const fetchFlatTickets = useCallback(async () => {
     setFlatLoading(true);
@@ -363,9 +415,9 @@ ${ticket.pdfUrl}${audioPart}`;
       }
     }
 
-    // Open WhatsApp Web/App link (fallback for desktop, sends the text link)
-    const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    // Open WhatsApp Desktop/Mobile native application directly
+    const url = `whatsapp://send?phone=${phone}&text=${encodeURIComponent(message)}`;
+    window.location.href = url;
     await markBrowserSent(ticket._id);
   };
 
@@ -810,72 +862,211 @@ ${ticket.pdfUrl}${audioPart}`;
       )}
 
       {subSection === 'weekly' && ticketFilter === 'sent' ? (
-        <div className="sent-tickets-two-col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
-          {/* Not Sent Column */}
-          <div className="sent-column">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #D97706', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1rem', color: '#D97706', textTransform: 'uppercase', margin: 0, textShadow: '0 0 8px rgba(217, 119, 6, 0.4)' }}>
-                <FiBell /> Not Sent Queue ({flatTickets.filter(t => !t.sent).length})
-              </h3>
-              {flatTickets.filter(t => !t.sent).length > 0 && (
-                <button
-                  className="btn btn-sm btn-outline"
-                  onClick={handleSendAll}
-                  style={{
-                    borderColor: '#D97706',
-                    color: '#D97706',
-                    background: 'rgba(217, 119, 6, 0.1)',
-                    boxShadow: '0 0 10px rgba(217, 119, 6, 0.2)',
-                    fontSize: '0.8rem',
-                    padding: '0.2rem 0.6rem',
-                    borderRadius: '6px'
-                  }}
-                >
-                  Send All
-                </button>
-              )}
-            </div>
-            {flatLoading ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}><FiActivity className="icon-spin" /> Loading...</div>
-            ) : flatTickets.filter(t => !t.sent).length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', border: '1px dashed var(--border)', borderRadius: '8px' }}>No tickets in not sent queue.</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {flatTickets.filter(t => !t.sent).map(t => (
-                  <div key={t._id} className="history-ticket-card" onClick={() => setSelectedTicket(t)} style={{ borderLeft: '3px solid #D97706', cursor: 'pointer' }}>
-                    <div className="ticket-card-name">{t.member1}{t.member2 ? ` & ${t.member2}` : ''}</div>
-                    <div className="ticket-card-meta">
-                      <span><FiCalendar /> {formatDateStr(t.visitDate)}</span>
-                      <span><FiClock /> {t.slotTime || '—'}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+        <div>
+          {/* Queue Status summary row */}
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem', background: 'rgba(0,0,0,0.15)', padding: '0.85rem 1.25rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <span style={{ fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: 'rgba(255,255,255,0.6)' }}>
+              <FiInfo /> Queue Status:
+            </span>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600 }} className="badge badge-pending">
+              Pending Queue: {flatTickets.filter(t => !t.sent && t.queueStatus !== 'failed').length}
+            </span>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600 }} className="badge badge-sending">
+              Sending: {flatTickets.filter(t => t.queueStatus === 'sending').length}
+            </span>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600 }} className="badge badge-sent">
+              Sent Today: {flatTickets.filter(t => t.sent).length}
+            </span>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600 }} className="badge badge-failed">
+              Failed: {flatTickets.filter(t => !t.sent && t.queueStatus === 'failed').length}
+            </span>
           </div>
 
-          {/* Sent Column */}
-          <div className="sent-column">
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1rem', color: '#3B82F6', textTransform: 'uppercase', borderBottom: '2px solid #3B82F6', paddingBottom: '0.5rem', marginBottom: '1rem', textShadow: '0 0 8px rgba(59, 130, 246, 0.4)' }}>
-              <FiSend /> Sent ({flatTickets.filter(t => t.sent).length})
-            </h3>
-            {flatLoading ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}><FiActivity className="icon-spin" /> Loading...</div>
-            ) : flatTickets.filter(t => t.sent).length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', border: '1px dashed var(--border)', borderRadius: '8px' }}>No sent tickets.</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {flatTickets.filter(t => t.sent).map(t => (
-                  <div key={t._id} className="history-ticket-card" onClick={() => setSelectedTicket(t)} style={{ borderLeft: '3px solid #3B82F6', cursor: 'pointer' }}>
-                    <div className="ticket-card-name">{t.member1}{t.member2 ? ` & ${t.member2}` : ''}</div>
-                    <div className="ticket-card-meta">
-                      <span><FiCalendar /> {formatDateStr(t.visitDate)}</span>
-                      <span><FiClock /> {t.slotTime || '—'}</span>
-                    </div>
-                  </div>
-                ))}
+          <div className="sent-tickets-three-col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
+            
+            {/* Not Sent Column */}
+            <div className="sent-column">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #D97706', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1rem', color: '#D97706', textTransform: 'uppercase', margin: 0, textShadow: '0 0 8px rgba(217, 119, 6, 0.4)' }}>
+                  <FiBell /> Not Sent ({flatTickets.filter(t => !t.sent && t.queueStatus !== 'failed').length})
+                </h3>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  {flatTickets.filter(t => !t.sent && t.queueStatus !== 'failed').length > 0 && (
+                    <>
+                      <button
+                        className="btn btn-sm btn-outline"
+                        onClick={handleSendAll}
+                        style={{
+                          borderColor: '#D97706',
+                          color: '#D97706',
+                          background: 'rgba(217, 119, 6, 0.1)',
+                          boxShadow: '0 0 10px rgba(217, 119, 6, 0.2)',
+                          fontSize: '0.75rem',
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: '6px'
+                        }}
+                      >
+                        Send All
+                      </button>
+                      <button
+                        className="btn btn-sm btn-outline"
+                        onClick={() => startQueue(flatTickets.filter(t => !t.sent && t.queueStatus !== 'failed'))}
+                        disabled={queueIsRunning}
+                        style={{
+                          borderColor: 'var(--accent)',
+                          color: 'var(--accent)',
+                          background: 'rgba(var(--accent-rgb), 0.1)',
+                          boxShadow: '0 0 10px rgba(var(--accent-rgb), 0.2)',
+                          fontSize: '0.75rem',
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: '6px',
+                          opacity: queueIsRunning ? 0.5 : 1,
+                          cursor: queueIsRunning ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        Auto Send Queue
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-            )}
+              
+              {flatLoading ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}><FiActivity className="icon-spin" /> Loading...</div>
+              ) : flatTickets.filter(t => !t.sent && t.queueStatus !== 'failed').length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', border: '1px dashed var(--border)', borderRadius: '8px' }}>No tickets in pending queue.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {flatTickets.filter(t => !t.sent && t.queueStatus !== 'failed').map(t => {
+                    const isSending = t.queueStatus === 'sending';
+                    return (
+                      <div 
+                        key={t._id} 
+                        className={`history-ticket-card ${isSending ? 'badge-sending' : ''}`} 
+                        onClick={() => setSelectedTicket(t)} 
+                        style={{ 
+                          borderLeft: isSending ? '3px solid #3b82f6' : '3px solid #D97706', 
+                          cursor: 'pointer',
+                          opacity: isSending ? 0.85 : 1
+                        }}
+                      >
+                        <div className="ticket-card-name" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>{t.member1}{t.member2 ? ` & ${t.member2}` : ''}</span>
+                          {isSending && (
+                            <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#3b82f6', fontWeight: 'bold' }} className="energy-pulse">Sending...</span>
+                          )}
+                        </div>
+                        <div className="ticket-card-meta">
+                          <span><FiCalendar /> {formatDateStr(t.visitDate)}</span>
+                          <span><FiClock /> {t.slotTime || '—'}</span>
+                        </div>
+                        <button
+                          className="btn btn-sm btn-outline"
+                          style={{
+                            marginTop: '0.6rem',
+                            width: '100%',
+                            borderColor: '#10B981',
+                            color: '#10B981',
+                            background: 'rgba(16, 185, 129, 0.1)',
+                            fontSize: '0.75rem',
+                            padding: '0.3rem',
+                            borderRadius: '4px',
+                            fontWeight: 'bold',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.3rem'
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSendBrowser(t);
+                          }}
+                          disabled={isSending}
+                        >
+                          <FiSend style={{ fontSize: '0.8rem' }} /> Send Browser
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Failed Queue Column */}
+            <div className="sent-column">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1rem', color: '#EF4444', textTransform: 'uppercase', borderBottom: '2px solid #EF4444', paddingBottom: '0.5rem', marginBottom: '1rem', textShadow: '0 0 8px rgba(239, 68, 68, 0.4)' }}>
+                <FiAlertCircle /> Failed ({flatTickets.filter(t => !t.sent && t.queueStatus === 'failed').length})
+              </h3>
+              {flatLoading ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}><FiActivity className="icon-spin" /> Loading...</div>
+              ) : flatTickets.filter(t => !t.sent && t.queueStatus === 'failed').length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', border: '1px dashed var(--border)', borderRadius: '8px' }}>No failed tickets.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {flatTickets.filter(t => !t.sent && t.queueStatus === 'failed').map(t => (
+                    <div key={t._id} className="history-ticket-card" onClick={() => setSelectedTicket(t)} style={{ borderLeft: '3px solid #EF4444', cursor: 'pointer' }}>
+                      <div className="ticket-card-name" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{t.member1}{t.member2 ? ` & ${t.member2}` : ''}</span>
+                        <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: 700 }}>FAILED</span>
+                      </div>
+                      <div className="ticket-card-meta">
+                        <span><FiCalendar /> {formatDateStr(t.visitDate)}</span>
+                        <span><FiClock /> {t.slotTime || '—'}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Sent Column */}
+            <div className="sent-column">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1rem', color: '#3B82F6', textTransform: 'uppercase', borderBottom: '2px solid #3B82F6', paddingBottom: '0.5rem', marginBottom: '1rem', textShadow: '0 0 8px rgba(59, 130, 246, 0.4)' }}>
+                <FiSend /> Sent ({flatTickets.filter(t => t.sent).length})
+              </h3>
+              {flatLoading ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}><FiActivity className="icon-spin" /> Loading...</div>
+              ) : flatTickets.filter(t => t.sent).length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', border: '1px dashed var(--border)', borderRadius: '8px' }}>No sent tickets.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {flatTickets.filter(t => t.sent).map(t => (
+                    <div key={t._id} className="history-ticket-card" onClick={() => setSelectedTicket(t)} style={{ borderLeft: '3px solid #3B82F6', cursor: 'pointer' }}>
+                      <div className="ticket-card-name">{t.member1}{t.member2 ? ` & ${t.member2}` : ''}</div>
+                      <div className="ticket-card-meta">
+                        <span><FiCalendar /> {formatDateStr(t.visitDate)}</span>
+                        <span><FiClock /> {t.slotTime || '—'}</span>
+                      </div>
+                      <button
+                        className="btn btn-sm btn-outline"
+                        style={{
+                          marginTop: '0.6rem',
+                          width: '100%',
+                          borderColor: '#3B82F6',
+                          color: '#3B82F6',
+                          background: 'rgba(59, 130, 246, 0.1)',
+                          fontSize: '0.75rem',
+                          padding: '0.3rem',
+                          borderRadius: '4px',
+                          fontWeight: 'bold',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.3rem'
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSendBrowser(t);
+                        }}
+                      >
+                        <FiSend style={{ fontSize: '0.8rem' }} /> Send Again
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       ) : searchQuery.trim() !== '' ? (
@@ -1110,22 +1301,90 @@ ${ticket.pdfUrl}${audioPart}`;
                 {/* Send/Resend Actions */}
                 {selectedTicket.pdfUrl && (
                   <div style={{ flex: '1 1 100%', marginBottom: '0.5rem' }}>
-                    {selectedTicket.sent ? (
+                    {selectedTicket.queueStatus === 'sending' ? (
                       <button 
                         className="btn btn-primary btn-sm" 
                         style={{
                           width: '100%',
-                          background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
-                          boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
+                          background: 'rgba(59, 130, 246, 0.5)',
                           border: 'none',
                           color: '#fff',
                           fontWeight: 600,
-                          padding: '0.6rem'
+                          padding: '0.6rem',
+                          cursor: 'not-allowed'
                         }} 
-                        onClick={() => handleSendWhatsApp(selectedTicket._id)}
+                        disabled
                       >
-                        Send Again
+                        Sending...
                       </button>
+                    ) : selectedTicket.queueStatus === 'failed' ? (
+                      <>
+                        <button 
+                          className="btn btn-warning btn-sm" 
+                          style={{
+                            width: '100%',
+                            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                            boxShadow: '0 0 15px rgba(245, 158, 11, 0.5)',
+                            border: 'none',
+                            color: '#fff',
+                            fontWeight: 600,
+                            padding: '0.6rem'
+                          }} 
+                          onClick={() => handleRetryQueueSend(selectedTicket._id)}
+                        >
+                          Retry Send (Queue)
+                        </button>
+                        <button 
+                          className="btn btn-primary btn-sm" 
+                          style={{
+                            width: '100%',
+                            background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
+                            boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
+                            border: 'none',
+                            color: '#fff',
+                            fontWeight: 600,
+                            padding: '0.6rem',
+                            marginTop: '0.5rem'
+                          }} 
+                          onClick={() => handleSendWhatsApp(selectedTicket._id)}
+                        >
+                          Send via WhatsApp (API)
+                        </button>
+                      </>
+                    ) : selectedTicket.sent ? (
+                      <>
+                        <button 
+                          className="btn btn-primary btn-sm" 
+                          style={{
+                            width: '100%',
+                            background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)',
+                            boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)',
+                            border: 'none',
+                            color: '#fff',
+                            fontWeight: 600,
+                            padding: '0.6rem'
+                          }} 
+                          onClick={() => handleSendWhatsApp(selectedTicket._id)}
+                        >
+                          Send Again (API)
+                        </button>
+                        <button 
+                          className="btn btn-outline btn-sm" 
+                          style={{
+                            width: '100%',
+                            borderColor: '#3B82F6',
+                            color: '#3B82F6',
+                            background: 'rgba(59, 130, 246, 0.1)',
+                            boxShadow: '0 0 10px rgba(59, 130, 246, 0.2)',
+                            fontWeight: 600,
+                            padding: '0.6rem',
+                            marginTop: '0.5rem'
+                          }} 
+                          onClick={() => handleSendBrowser(selectedTicket)}
+                        >
+                          Send Again (Browser)
+                        </button>
+                      </>
                     ) : selectedTicket.deliveryStatus === 'failed' ? (
                       <button 
                         className="btn btn-primary btn-sm" 
@@ -1159,22 +1418,25 @@ ${ticket.pdfUrl}${audioPart}`;
                         Send via WhatsApp
                       </button>
                     )}
-                    <button 
-                      className="btn btn-outline btn-sm" 
-                      style={{
-                        width: '100%',
-                        borderColor: '#10B981',
-                        color: '#10B981',
-                        background: 'rgba(16, 185, 129, 0.1)',
-                        boxShadow: '0 0 10px rgba(16, 185, 129, 0.2)',
-                        fontWeight: 600,
-                        padding: '0.6rem',
-                        marginTop: '0.5rem'
-                      }} 
-                      onClick={() => handleSendBrowser(selectedTicket)}
-                    >
-                      Send Browser
-                    </button>
+                    
+                    {selectedTicket.queueStatus !== 'sending' && (
+                      <button 
+                        className="btn btn-outline btn-sm" 
+                        style={{
+                          width: '100%',
+                          borderColor: '#10B981',
+                          color: '#10B981',
+                          background: 'rgba(16, 185, 129, 0.1)',
+                          boxShadow: '0 0 10px rgba(16, 185, 129, 0.2)',
+                          fontWeight: 600,
+                          padding: '0.6rem',
+                          marginTop: '0.5rem'
+                        }} 
+                        onClick={() => handleSendBrowser(selectedTicket)}
+                      >
+                        Send Browser
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -1201,6 +1463,7 @@ ${ticket.pdfUrl}${audioPart}`;
                           setMobilePdfUrl(selectedTicket.pdfUrl);
                         }
                       }}
+                      disabled={selectedTicket.queueStatus === 'sending'}
                     >
                       View PDF
                     </button>
@@ -1210,7 +1473,7 @@ ${ticket.pdfUrl}${audioPart}`;
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="btn btn-outline btn-sm" 
-                      style={{ flex: '1 1 calc(33% - 0.5rem)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                      style={{ flex: '1 1 calc(33% - 0.5rem)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', pointerEvents: selectedTicket.queueStatus === 'sending' ? 'none' : 'auto', opacity: selectedTicket.queueStatus === 'sending' ? 0.5 : 1 }}
                     >
                       Download PDF
                     </a>
@@ -1218,6 +1481,7 @@ ${ticket.pdfUrl}${audioPart}`;
                       className="btn btn-warning btn-sm" 
                       style={{ flex: '1 1 calc(33% - 0.5rem)' }} 
                       onClick={() => document.getElementById('modal-pdf-upload').click()}
+                      disabled={selectedTicket.queueStatus === 'sending'}
                     >
                       Replace PDF
                     </button>
@@ -1227,6 +1491,7 @@ ${ticket.pdfUrl}${audioPart}`;
                     className="btn btn-primary btn-sm" 
                     style={{ flex: '1 1 100%' }} 
                     onClick={() => document.getElementById('modal-pdf-upload').click()}
+                    disabled={selectedTicket.queueStatus === 'sending'}
                   >
                     Upload PDF
                   </button>
@@ -1271,7 +1536,12 @@ ${ticket.pdfUrl}${audioPart}`;
                   </>
                 )}
 
-                <button className="btn btn-danger btn-sm" style={{ flex: '1 1 100%' }} onClick={handleTicketDelete}>
+                <button 
+                  className="btn btn-danger btn-sm" 
+                  style={{ flex: '1 1 100%' }} 
+                  onClick={handleTicketDelete}
+                  disabled={selectedTicket.queueStatus === 'sending'}
+                >
                   Delete Ticket
                 </button>
               </div>
