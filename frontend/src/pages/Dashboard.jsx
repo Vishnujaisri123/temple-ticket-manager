@@ -295,8 +295,8 @@ const Dashboard = () => {
 📄 Download your ticket here 👇
 ${ticket.pdfUrl}${audioPart}`;
 
-      const url = `whatsapp://send?phone=${phone}&text=${encodeURIComponent(message)}`;
-      window.location.href = url;
+      const url = `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
 
       toast.info(`Opened WhatsApp Web for ${ticket.member1}. Please attach files, send, and confirm.`);
     }

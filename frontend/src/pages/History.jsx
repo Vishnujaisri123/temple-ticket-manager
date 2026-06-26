@@ -416,9 +416,9 @@ ${ticket.pdfUrl}${audioPart}`;
       }
     }
 
-    // Open WhatsApp Desktop/Mobile native application directly
-    const url = `whatsapp://send?phone=${phone}&text=${encodeURIComponent(message)}`;
-    window.location.href = url;
+    // Open WhatsApp Web directly in a new tab (bypassing the app selection screen)
+    const url = `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
     await markBrowserSent(ticket._id);
   };
 
