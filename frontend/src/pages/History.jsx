@@ -944,13 +944,8 @@ ${ticket.pdfUrl}${audioPart}`;
                       <div 
                         key={t._id} 
                         className={`history-ticket-card ${isSending ? 'badge-sending' : ''}`} 
-                        onClick={(e) => {
-                          if (e.target.closest('button')) return;
-                          setSelectedTicket(t);
-                        }} 
                         style={{ 
                           borderLeft: isSending ? '3px solid #3b82f6' : '3px solid #D97706', 
-                          cursor: 'pointer',
                           opacity: isSending ? 0.85 : 1,
                           display: 'flex',
                           justifyContent: 'space-between',
@@ -959,7 +954,11 @@ ${ticket.pdfUrl}${audioPart}`;
                           padding: '0.75rem 1rem'
                         }}
                       >
-                        <div style={{ flex: 1, minWidth: 0 }}>
+                        {/* Left side: Clickable details area */}
+                        <div 
+                          onClick={() => setSelectedTicket(t)}
+                          style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
+                        >
                           <div className="ticket-card-name" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {t.member1}{t.member2 ? ` & ${t.member2}` : ''}
@@ -973,6 +972,8 @@ ${ticket.pdfUrl}${audioPart}`;
                             <span><FiClock /> {t.slotTime || '—'}</span>
                           </div>
                         </div>
+                        
+                        {/* Right side: Send button */}
                         <button
                           className="btn btn-sm btn-outline"
                           style={{
@@ -989,10 +990,7 @@ ${ticket.pdfUrl}${audioPart}`;
                             gap: '0.3rem',
                             flexShrink: 0
                           }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSendBrowser(t);
-                          }}
+                          onClick={() => handleSendBrowser(t)}
                           disabled={isSending}
                         >
                           <FiSend style={{ fontSize: '0.8rem' }} /> Send
@@ -1046,13 +1044,8 @@ ${ticket.pdfUrl}${audioPart}`;
                     <div 
                       key={t._id} 
                       className="history-ticket-card" 
-                      onClick={(e) => {
-                        if (e.target.closest('button')) return;
-                        setSelectedTicket(t);
-                      }} 
                       style={{ 
                         borderLeft: '3px solid #3B82F6', 
-                        cursor: 'pointer',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
@@ -1060,7 +1053,11 @@ ${ticket.pdfUrl}${audioPart}`;
                         padding: '0.75rem 1rem'
                       }}
                     >
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Left side: Clickable details area */}
+                      <div 
+                        onClick={() => setSelectedTicket(t)}
+                        style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
+                      >
                         <div className="ticket-card-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {t.member1}{t.member2 ? ` & ${t.member2}` : ''}
                         </div>
@@ -1069,6 +1066,8 @@ ${ticket.pdfUrl}${audioPart}`;
                           <span><FiClock /> {t.slotTime || '—'}</span>
                         </div>
                       </div>
+                      
+                      {/* Right side: Send Again button */}
                       <button
                         className="btn btn-sm btn-outline"
                         style={{
@@ -1085,10 +1084,7 @@ ${ticket.pdfUrl}${audioPart}`;
                           gap: '0.3rem',
                           flexShrink: 0
                         }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSendBrowser(t);
-                        }}
+                        onClick={() => handleSendBrowser(t)}
                       >
                         <FiSend style={{ fontSize: '0.8rem' }} /> Send Again
                       </button>
