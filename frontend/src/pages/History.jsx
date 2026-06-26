@@ -371,18 +371,54 @@ const History = ({
 📄 Download your ticket here 👇
 ${ticket.pdfUrl}${audioPart}`;
 
-    // Detect mobile device to choose the correct redirection protocol
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    if (isMobile) {
-      // Mobile: Open native WhatsApp application directly
-      const url = `whatsapp://send?phone=${phone}&text=${encodeURIComponent(message)}`;
-      window.location.href = url;
-    } else {
-      // Desktop: Open WhatsApp Web directly in a new tab (bypassing the app selection screen)
-      const url = `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
+    // Try Web Share API first (for mobile devices to send the actual PDF and Audio files directly)
+    if (navigator.share && ticket.pdfUrl) {
+      try {
+        const filesArray = [];
+
+        // 1. Fetch and prepare the PDF file
+        const pdfResponse = await fetch(ticket.pdfUrl);
+        const pdfBlob = await pdfResponse.blob();
+        const pdfFile = new File([pdfBlob], `ticket_${ticket.member1.replace(/\s+/g, '_')}.pdf`, { type: 'application/pdf' });
+        filesArray.push(pdfFile);
+
+        // 2. Fetch and prepare the Audio file (if available)
+        const voiceUrl = adminAudioUrl || 'https://res.cloudinary.com/df4jjxh9n/video/upload/v1782452661/temple_audio/temple_voice_message.mp3';
+        try {
+          const audioResponse = await fetch(voiceUrl);
+          const audioBlob = await audioResponse.blob();
+          const audioFile = new File([audioBlob], `temple_voice_message.mp3`, { type: 'audio/mpeg' });
+          filesArray.push(audioFile);
+        } catch (audioErr) {
+          console.warn('Failed to fetch audio for Web Share:', audioErr);
+        }
+
+        if (navigator.canShare && navigator.canShare({ files: filesArray })) {
+          await navigator.share({ 
+            title: `Temple Ticket & Voice — ${ticket.member1}`, 
+            text: message, 
+            files: filesArray 
+          });
+          await markBrowserSent(ticket._id);
+          return;
+        } else if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+          // Fallback to sharing just the PDF if sharing both is not supported on the device
+          await navigator.share({ 
+            title: `Temple Ticket — ${ticket.member1}`, 
+            text: message, 
+            files: [pdfFile] 
+          });
+          await markBrowserSent(ticket._id);
+          return;
+        }
+      } catch (e) {
+        console.warn('Web Share failed, falling back to WhatsApp Web link:', e);
+      }
     }
+
+    // Open WhatsApp Web directly in a new tab (bypassing the app selection screen)
+    const url = `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
     await markBrowserSent(ticket._id);
   };
 
@@ -908,7 +944,10 @@ ${ticket.pdfUrl}${audioPart}`;
                       <div 
                         key={t._id} 
                         className={`history-ticket-card ${isSending ? 'badge-sending' : ''}`} 
-                        onClick={() => setSelectedTicket(t)} 
+                        onClick={(e) => {
+                          if (e.target.closest('button')) return;
+                          setSelectedTicket(t);
+                        }} 
                         style={{ 
                           borderLeft: isSending ? '3px solid #3b82f6' : '3px solid #D97706', 
                           cursor: 'pointer',
@@ -1007,7 +1046,10 @@ ${ticket.pdfUrl}${audioPart}`;
                     <div 
                       key={t._id} 
                       className="history-ticket-card" 
-                      onClick={() => setSelectedTicket(t)} 
+                      onClick={(e) => {
+                        if (e.target.closest('button')) return;
+                        setSelectedTicket(t);
+                      }} 
                       style={{ 
                         borderLeft: '3px solid #3B82F6', 
                         cursor: 'pointer',
