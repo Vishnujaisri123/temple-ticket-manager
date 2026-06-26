@@ -5,7 +5,6 @@ import { toast } from '../components/Toast';
 import BookingTable from '../components/BookingTable';
 import AddBookingForm from '../components/AddBookingForm';
 import History from './History';
-import Settings from './Settings';
 import {
   FiActivity,
   FiUser,
@@ -16,7 +15,6 @@ import {
   FiDollarSign,
   FiCheckCircle,
   FiSend,
-  FiSettings,
 } from 'react-icons/fi';
 import { LuLayoutDashboard, LuHistory } from 'react-icons/lu';
 import { HiOutlineDocumentReport, HiTrendingUp } from 'react-icons/hi';
@@ -77,8 +75,6 @@ const Dashboard = () => {
         setHistoryFilter(filterParam || 'all');
       } else if (path === '/daily') {
         setPage('daily');
-      } else if (path === '/settings') {
-        setPage('settings');
       } else if (path === '/' || path === '/login') {
         setPage('dashboard');
       }
@@ -98,9 +94,6 @@ const Dashboard = () => {
     } else if (pageName === 'daily') {
       window.history.pushState({}, '', '/daily');
       setPage('daily');
-    } else if (pageName === 'settings') {
-      window.history.pushState({}, '', '/settings');
-      setPage('settings');
     } else {
       window.history.pushState({}, '', '/');
       setPage('dashboard');
@@ -209,9 +202,6 @@ const Dashboard = () => {
             <button className={`nav-tab ${page === 'daily' ? 'active' : ''}`} onClick={() => navigateTo('daily')}>
               <HiOutlineDocumentReport className="icon-hover-scale" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} /> Reports
             </button>
-            <button className={`nav-tab ${page === 'settings' ? 'active' : ''}`} onClick={() => navigateTo('settings')}>
-              <FiSettings className="icon-hover-scale" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} /> Settings
-            </button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button className="btn-mode" onClick={() => setDarkMode(!darkMode)}>
@@ -228,10 +218,6 @@ const Dashboard = () => {
       {page === 'history' ? (
         <main className="main-content">
           <History initialFilter={historyFilter} initialSubSection={historySubSection} key={`${historyFilter}-${historySubSection}`} />
-        </main>
-      ) : page === 'settings' ? (
-        <main className="main-content">
-          <Settings />
         </main>
       ) : page === 'daily' ? (
         <main className="main-content">

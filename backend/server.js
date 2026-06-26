@@ -6,7 +6,6 @@ const cors = require('cors');
 const connectDB = require('./config/database');
 const bookingRoutes = require('./routes/bookingRoutes');
 const authRoutes = require('./routes/authRoutes');
-const settingsRoutes = require('./routes/settingsRoutes');
 const startScheduler = require('./services/scheduler');
 
 const app = express();
@@ -27,18 +26,15 @@ app.use(express.json());
 app.get('/', (req, res) => res.json({ status: 'Temple Ticket API running' }));
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
-// Serve uploaded PDFs and media
+// Serve uploaded PDFs
 app.use('/uploads', (req, res, next) => {
-  if (req.path.endsWith('.pdf')) {
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'inline');
-  }
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'inline');
   next();
 }, express.static(path.join(__dirname, 'uploads')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/bookings', bookingRoutes);
-app.use('/api/settings', settingsRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

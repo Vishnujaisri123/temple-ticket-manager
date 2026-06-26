@@ -35,8 +35,3 @@ export const claimOrphans = () => api.post('/bookings/claim-orphans');
 export const sendWhatsApp = (id) => api.post(`/bookings/${id}/send-whatsapp`);
 export const login = (data) => api.post('/auth/login', data);
 export const seedAdmin = () => api.post('/auth/seed');
-export const getTempleMedia = () => api.get('/settings/temple-media');
-export const uploadTempleVoiceMessage = (formData) => api.post('/settings/temple-media/upload', formData, {
-  headers: { 'Content-Type': 'multipart/form-data' }
-});
-export const deleteTempleVoiceMessage = () => api.delete('/settings/temple-media');
