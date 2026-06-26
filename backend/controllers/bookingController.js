@@ -693,7 +693,7 @@ const sendWhatsApp = async (req, res) => {
     }
 
     // 3b. Make request to official Meta WhatsApp API to send the Audio message
-    const audioUrl = `${process.env.SERVER_URL}/uploads/temple_voice_message.mp3`;
+    const audioUrl = 'https://res.cloudinary.com/df4jjxh9n/video/upload/v1782452661/temple_audio/temple_voice_message.mp3';
     console.log(`[WhatsApp API] Sending voice message audio from URL: ${audioUrl}`);
     
     const audioResponse = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
