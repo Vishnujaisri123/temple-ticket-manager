@@ -275,26 +275,35 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
     // Build the message template
     const visitDate = ticket.visitDate 
       ? new Date(ticket.visitDate).toLocaleDateString('en-IN', {
-          day: '2-digit', month: 'long', year: 'numeric',
+          day: 'numeric', month: 'long', year: 'numeric',
         })
       : '—';
-    const pdfLink = ticket.pdfUrl;
-    const members = ticket.member2
-      ? `${ticket.member1} & ${ticket.member2}`
-      : ticket.member1;
-    const gothram = ticket.gothram ? `\n🏛️ Gothram: ${ticket.gothram}` : '';
+    const timeslot = ticket.slotTime || '—';
 
-    const message = `🙏 Namaskaram ${ticket.member1}!
+    const message = `🛕 శ్రీ వేంకటేశ్వర స్వామి వారి ఆశీస్సులతో 🛕
 
-Your temple ticket is ready.
+🌺 నమస్కారం ${ticket.member1} గారు,
 
-📅 Visit Date: *${visitDate}*
-👥 Members: ${members}${gothram}
+మీ వడపల్లి శ్రీ వేంకటేశ్వర స్వామి వారి అష్టోత్తర సేవ (Astothram) టికెట్ సిద్ధంగా ఉంది.
+
+🗓️ తేదీ | Date: ${visitDate}
+
+🕘 సమయం | Time: ${timeslot}
+
+🖨️ దయచేసి ఈ టికెట్కు ప్రింట్ తీసుకుని దేవాలయానికి తప్పనిసరిగా తీసుకురండి.
+
+🖨️ Please take a printout of this ticket and bring it with you to the temple.
+
+🪔 పూజా సామగ్రి (Pooja Items) కావాలంటే, బుక్ చేసిన తేదీకి కనీసం 3 రోజుల ముందు ఈ నంబర్ను సంప్రదించండి: 📞 8331923995
+
+🪔 If you require Pooja items, please contact 📞 8331923995 at least 3 days before your booked date.
+
+🙏 ధన్యవాదాలు | Thank You
+
+🛕 వడపల్లి శ్రీ వేంకటేశ్వర స్వామి దేవస్థానం🛕
 
 📄 Download your ticket here 👇
-${pdfLink}
-
-Jai Govinda! 🙏`;
+${ticket.pdfUrl}`;
 
     // Try Web Share API first (for mobile devices to send the actual PDF file directly)
     if (navigator.share && ticket.pdfUrl) {

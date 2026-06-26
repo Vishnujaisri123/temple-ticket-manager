@@ -618,29 +618,37 @@ const sendWhatsApp = async (req, res) => {
     // Prepend 91 for international format required by Meta WhatsApp Cloud API
     const recipient = '91' + cleanPhone;
 
-    // 2. Build template message text
-    const bookedDate = booking.bookingDate
-      ? new Date(booking.bookingDate).toLocaleDateString('en-IN', {
-          day: '2-digit',
+    // 2. Build template message text in Telugu and English
+    const visitDateStr = booking.visitDate
+      ? new Date(booking.visitDate).toLocaleDateString('en-IN', {
+          day: 'numeric',
           month: 'long',
           year: 'numeric',
         })
       : '—';
     const timeslot = booking.slotTime || '—';
 
-    const messageText = `Hello ${booking.member1},
+    const messageText = `🛕 శ్రీ వేంకటేశ్వర స్వామి వారి ఆశీస్సులతో 🛕
 
-Your Sri Venkateswara Swamy Temple booking ticket is ready.
+🌺 నమస్కారం ${booking.member1} గారు,
 
-Booked Date:
-${bookedDate}
+మీ వడపల్లి శ్రీ వేంకటేశ్వర స్వామి వారి అష్టోత్తర సేవ (Astothram) టికెట్ సిద్ధంగా ఉంది.
 
-Timeslot:
-${timeslot}
+🗓️ తేదీ | Date: ${visitDateStr}
 
-Please find your ticket attached.
+🕘 సమయం | Time: ${timeslot}
 
-Thank you.`;
+🖨️ దయచేసి ఈ టికెట్కు ప్రింట్ తీసుకుని దేవాలయానికి తప్పనిసరిగా తీసుకురండి.
+
+🖨️ Please take a printout of this ticket and bring it with you to the temple.
+
+🪔 పూజా సామగ్రి (Pooja Items) కావాలంటే, బుక్ చేసిన తేదీకి కనీసం 3 రోజుల ముందు ఈ నంబర్ను సంప్రదించండి: 📞 8331923995
+
+🪔 If you require Pooja items, please contact 📞 8331923995 at least 3 days before your booked date.
+
+🙏 ధన్యవాదాలు | Thank You
+
+🛕 వడపల్లి శ్రీ వేంకటేశ్వర స్వామి దేవస్థానం🛕`;
 
     const token = process.env.WHATSAPP_ACCESS_TOKEN;
     const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -653,7 +661,7 @@ Thank you.`;
       return res.status(500).json({ message: 'WhatsApp API credentials missing.' });
     }
 
-    // 3. Make request to official Meta WhatsApp API
+    // 3. Make request to official Meta WhatsApp API to send the PDF Document
     const response = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
       method: 'POST',
       headers: {
@@ -684,6 +692,34 @@ Thank you.`;
       return res.status(500).json({ message: errMsg, error: responseData.error });
     }
 
+    // 3b. Make request to official Meta WhatsApp API to send the Audio message
+    const audioUrl = `${process.env.SERVER_URL}/uploads/temple_voice_message.mp3`;
+    console.log(`[WhatsApp API] Sending voice message audio from URL: ${audioUrl}`);
+    
+    const audioResponse = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: recipient,
+        type: 'audio',
+        audio: {
+          link: audioUrl
+        }
+      })
+    });
+
+    const audioResponseData = await audioResponse.json();
+    if (!audioResponse.ok) {
+      console.error('[WhatsApp API] Meta API voice message failed:', audioResponseData);
+    } else {
+      console.log('[WhatsApp API] Successfully sent voice message audio to', recipient);
+    }
+
     // 4. Update status after success
     const messageId = responseData.messages?.[0]?.id || '';
     booking.sent = true;
@@ -697,7 +733,7 @@ Thank you.`;
     
     await booking.save();
 
-    console.log(`[WhatsApp API] Successfully sent ticket to ${recipient}. Msg ID: ${messageId}`);
+    console.log(`[WhatsApp API] Successfully sent ticket PDF to ${recipient}. Msg ID: ${messageId}`);
     res.json({ message: 'WhatsApp message sent successfully', booking });
   } catch (err) {
     console.error('[WhatsApp API] System error while sending message:', err.message);
