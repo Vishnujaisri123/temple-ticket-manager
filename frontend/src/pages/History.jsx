@@ -318,17 +318,42 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
 📄 Download your ticket here 👇
 ${ticket.pdfUrl}${audioPart}`;
 
-    // Try Web Share API first (for mobile devices to send the actual PDF file directly)
+    // Try Web Share API first (for mobile devices to send the actual PDF and Audio files directly)
     if (navigator.share && ticket.pdfUrl) {
       try {
-        const response = await fetch(ticket.pdfUrl);
-        const blob = await response.blob();
-        const file = new File([blob], `ticket_${ticket.member1.replace(/\s+/g, '_')}.pdf`, { type: 'application/pdf' });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        const filesArray = [];
+
+        // 1. Fetch and prepare the PDF file
+        const pdfResponse = await fetch(ticket.pdfUrl);
+        const pdfBlob = await pdfResponse.blob();
+        const pdfFile = new File([pdfBlob], `ticket_${ticket.member1.replace(/\s+/g, '_')}.pdf`, { type: 'application/pdf' });
+        filesArray.push(pdfFile);
+
+        // 2. Fetch and prepare the Audio file (if available)
+        const voiceUrl = adminAudioUrl || 'https://res.cloudinary.com/df4jjxh9n/video/upload/v1782452661/temple_audio/temple_voice_message.mp3';
+        try {
+          const audioResponse = await fetch(voiceUrl);
+          const audioBlob = await audioResponse.blob();
+          const audioFile = new File([audioBlob], `temple_voice_message.mp3`, { type: 'audio/mpeg' });
+          filesArray.push(audioFile);
+        } catch (audioErr) {
+          console.warn('Failed to fetch audio for Web Share:', audioErr);
+        }
+
+        if (navigator.canShare && navigator.canShare({ files: filesArray })) {
+          await navigator.share({ 
+            title: `Temple Ticket & Voice — ${ticket.member1}`, 
+            text: message, 
+            files: filesArray 
+          });
+          await markBrowserSent(ticket._id);
+          return;
+        } else if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+          // Fallback to sharing just the PDF if sharing both is not supported on the device
           await navigator.share({ 
             title: `Temple Ticket — ${ticket.member1}`, 
             text: message, 
-            files: [file] 
+            files: [pdfFile] 
           });
           await markBrowserSent(ticket._id);
           return;
