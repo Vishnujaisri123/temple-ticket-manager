@@ -296,13 +296,36 @@ ${pdfLink}
 
 Jai Govinda! 🙏`;
 
-    // Open WhatsApp Web/App
+    // Try Web Share API first (for mobile devices to send the actual PDF file directly)
+    if (navigator.share && ticket.pdfUrl) {
+      try {
+        const response = await fetch(ticket.pdfUrl);
+        const blob = await response.blob();
+        const file = new File([blob], `ticket_${ticket.member1.replace(/\s+/g, '_')}.pdf`, { type: 'application/pdf' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ 
+            title: `Temple Ticket — ${ticket.member1}`, 
+            text: message, 
+            files: [file] 
+          });
+          await markBrowserSent(ticket._id);
+          return;
+        }
+      } catch (e) {
+        console.warn('Web Share failed, falling back to WhatsApp Web link:', e);
+      }
+    }
+
+    // Open WhatsApp Web/App link (fallback for desktop, sends the text link)
     const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
+    await markBrowserSent(ticket._id);
+  };
 
-    const toastId = toast.loading ? toast.loading('Opening WhatsApp and updating status...') : null;
+  const markBrowserSent = async (ticketId) => {
+    const toastId = toast.loading ? toast.loading('Updating status on server...') : null;
     try {
-      const { data } = await updateBooking(ticket._id, {
+      const { data } = await updateBooking(ticketId, {
         sent: true,
         pdfSent: true,
         sentAt: new Date(),
@@ -323,7 +346,7 @@ Jai Govinda! 🙏`;
       setFlatTickets((prev) => prev.map((t) => (t._id === data._id ? data : t)));
 
       if (toastId) toast.dismiss(toastId);
-      toast.success('Opened WhatsApp Web and marked ticket as sent!');
+      toast.success('Ticket marked as sent!');
 
       if (ticketFilter === 'sent') {
         fetchFlatTickets();
@@ -333,7 +356,7 @@ Jai Govinda! 🙏`;
     } catch (err) {
       if (toastId) toast.dismiss(toastId);
       console.error('Failed to update sent status:', err);
-      toast.error('Opened WhatsApp, but failed to update status on server.');
+      toast.error('Failed to update status on server.');
     }
   };
 
