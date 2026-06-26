@@ -944,22 +944,23 @@ ${ticket.pdfUrl}${audioPart}`;
                       <div 
                         key={t._id} 
                         className={`history-ticket-card ${isSending ? 'badge-sending' : ''}`} 
+                        onClick={() => setSelectedTicket(t)} 
                         style={{ 
-                          borderLeft: isSending ? '3px solid #3b82f6' : '3px solid #D97706',
+                          borderLeft: isSending ? '3px solid #3b82f6' : '3px solid #D97706', 
+                          cursor: 'pointer',
+                          opacity: isSending ? 0.85 : 1,
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
-                          gap: '0.75rem',
-                          padding: '0.75rem'
+                          gap: '1rem',
+                          padding: '0.75rem 1rem'
                         }}
                       >
-                        {/* Clickable text area */}
-                        <div 
-                          onClick={() => setSelectedTicket(t)}
-                          style={{ flex: 1, cursor: 'pointer' }}
-                        >
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <div className="ticket-card-name" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>{t.member1}{t.member2 ? ` & ${t.member2}` : ''}</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {t.member1}{t.member2 ? ` & ${t.member2}` : ''}
+                            </span>
                             {isSending && (
                               <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#3b82f6', fontWeight: 'bold', marginLeft: '0.5rem' }} className="energy-pulse">Sending...</span>
                             )}
@@ -969,8 +970,6 @@ ${ticket.pdfUrl}${audioPart}`;
                             <span><FiClock /> {t.slotTime || '—'}</span>
                           </div>
                         </div>
-
-                        {/* Right-aligned button */}
                         <button
                           className="btn btn-sm btn-outline"
                           style={{
@@ -981,11 +980,11 @@ ${ticket.pdfUrl}${audioPart}`;
                             padding: '0.4rem 0.6rem',
                             borderRadius: '6px',
                             fontWeight: 'bold',
+                            whiteSpace: 'nowrap',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.3rem',
-                            flexShrink: 0,
-                            boxShadow: '0 0 8px rgba(16, 185, 129, 0.15)'
+                            flexShrink: 0
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -993,7 +992,7 @@ ${ticket.pdfUrl}${audioPart}`;
                           }}
                           disabled={isSending}
                         >
-                          <FiSend style={{ fontSize: '0.75rem' }} /> Send
+                          <FiSend style={{ fontSize: '0.8rem' }} /> Send
                         </button>
                       </div>
                     );
@@ -1043,29 +1042,27 @@ ${ticket.pdfUrl}${audioPart}`;
                   {flatTickets.filter(t => t.sent).map(t => (
                     <div 
                       key={t._id} 
-                      className="history-ticket-card"
+                      className="history-ticket-card" 
+                      onClick={() => setSelectedTicket(t)} 
                       style={{ 
-                        borderLeft: '3px solid #3B82F6',
+                        borderLeft: '3px solid #3B82F6', 
+                        cursor: 'pointer',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        gap: '0.75rem',
-                        padding: '0.75rem'
+                        gap: '1rem',
+                        padding: '0.75rem 1rem'
                       }}
                     >
-                      {/* Clickable text area */}
-                      <div 
-                        onClick={() => setSelectedTicket(t)}
-                        style={{ flex: 1, cursor: 'pointer' }}
-                      >
-                        <div className="ticket-card-name">{t.member1}{t.member2 ? ` & ${t.member2}` : ''}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="ticket-card-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {t.member1}{t.member2 ? ` & ${t.member2}` : ''}
+                        </div>
                         <div className="ticket-card-meta" style={{ marginTop: '0.25rem' }}>
                           <span><FiCalendar /> {formatDateStr(t.visitDate)}</span>
                           <span><FiClock /> {t.slotTime || '—'}</span>
                         </div>
                       </div>
-
-                      {/* Right-aligned button */}
                       <button
                         className="btn btn-sm btn-outline"
                         style={{
@@ -1076,18 +1073,18 @@ ${ticket.pdfUrl}${audioPart}`;
                           padding: '0.4rem 0.6rem',
                           borderRadius: '6px',
                           fontWeight: 'bold',
+                          whiteSpace: 'nowrap',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '0.3rem',
-                          flexShrink: 0,
-                          boxShadow: '0 0 8px rgba(59, 130, 246, 0.15)'
+                          flexShrink: 0
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleSendBrowser(t);
                         }}
                       >
-                        <FiSend style={{ fontSize: '0.75rem' }} /> Resend
+                        <FiSend style={{ fontSize: '0.8rem' }} /> Send Again
                       </button>
                     </div>
                   ))}
