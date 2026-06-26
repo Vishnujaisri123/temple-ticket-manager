@@ -295,8 +295,14 @@ const Dashboard = () => {
 📄 Download your ticket here 👇
 ${ticket.pdfUrl}${audioPart}`;
 
-      const url = `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobile) {
+        const url = `whatsapp://send?phone=${phone}&text=${encodeURIComponent(message)}`;
+        window.location.href = url;
+      } else {
+        const url = `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
 
       toast.info(`Opened WhatsApp Web for ${ticket.member1}. Please attach files, send, and confirm.`);
     }
