@@ -32,6 +32,7 @@ const bookingSchema = new mongoose.Schema(
 );
 
 // Auto-increment serialNo per week (Saturday 12:00 AM to Friday 11:59:59.999 PM)
+// Reuses the first available deleted serial number (gap-filling) in the current week
 bookingSchema.pre('save', async function (next) {
   if (this.isNew) {
     const referenceDate = new Date();
@@ -46,15 +47,25 @@ bookingSchema.pre('save', async function (next) {
     endOfWeek.setDate(startOfWeek.getDate() + 6);
     endOfWeek.setHours(23, 59, 59, 999);
 
-    const lastInWeek = await this.constructor.findOne(
+    // Fetch all bookings in the current week, sorted by serialNo ascending
+    const weeklyBookings = await this.constructor.find(
       {
         createdAt: { $gte: startOfWeek, $lte: endOfWeek }
       },
-      {},
-      { sort: { serialNo: -1 } }
-    );
+      { serialNo: 1 }
+    ).sort({ serialNo: 1 });
 
-    this.serialNo = lastInWeek ? lastInWeek.serialNo + 1 : 1;
+    // Find the first missing serial number (gap) starting from 1
+    let nextSerial = 1;
+    for (const booking of weeklyBookings) {
+      if (booking.serialNo === nextSerial) {
+        nextSerial++;
+      } else if (booking.serialNo > nextSerial) {
+        break; // Gap found!
+      }
+    }
+
+    this.serialNo = nextSerial;
   }
   next();
 });
