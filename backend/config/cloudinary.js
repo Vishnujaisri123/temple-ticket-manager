@@ -46,4 +46,31 @@ const deleteFromCloudinary = (publicId) =>
     );
   });
 
-module.exports = { upload, uploadToCloudinary, deleteFromCloudinary };
+const uploadAudio = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('audio/')) cb(null, true);
+    else cb(new Error('Only audio files are allowed'), false);
+  },
+});
+
+const uploadAudioToCloudinary = (buffer, filename) =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'temple_audio',
+        resource_type: 'video', // 'video' is required for audio files
+        public_id: filename,
+        overwrite: true,
+      },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    );
+    Readable.from(buffer).pipe(stream);
+  });
+
+module.exports = { upload, uploadToCloudinary, deleteFromCloudinary, uploadAudio, uploadAudioToCloudinary };
+

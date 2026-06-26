@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getBookings, getStats, claimOrphans, getAutoDeletedLogs } from '../services/api';
+import { getBookings, getStats, claimOrphans, getAutoDeletedLogs, getAudioSettings, uploadAudio } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from '../components/Toast';
 import BookingTable from '../components/BookingTable';
@@ -15,6 +15,7 @@ import {
   FiDollarSign,
   FiCheckCircle,
   FiSend,
+  FiVolume2,
 } from 'react-icons/fi';
 import { LuLayoutDashboard, LuHistory } from 'react-icons/lu';
 import { HiOutlineDocumentReport, HiTrendingUp } from 'react-icons/hi';
@@ -34,6 +35,49 @@ const Dashboard = () => {
   const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
   const [historyFilter, setHistoryFilter] = useState('all');
   const [historySubSection, setHistorySubSection] = useState('weekly');
+
+  const [currentAudioUrl, setCurrentAudioUrl] = useState('');
+  const [selectedAudioFile, setSelectedAudioFile] = useState(null);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+
+  useEffect(() => {
+    if (page === 'dashboard') {
+      getAudioSettings()
+        .then(({ data }) => {
+          setCurrentAudioUrl(data.audioUrl || '');
+        })
+        .catch(() => {});
+    }
+  }, [page]);
+
+  const handleAudioChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (!file.type.startsWith('audio/')) {
+        toast.error('Please select an audio file');
+        return;
+      }
+      setSelectedAudioFile(file);
+    }
+  };
+
+  const handleAudioUpload = async () => {
+    if (!selectedAudioFile) return;
+    setUploadingAudio(true);
+    const formData = new FormData();
+    formData.append('audio', selectedAudioFile);
+
+    try {
+      const { data } = await uploadAudio(formData);
+      setCurrentAudioUrl(data.audioUrl);
+      setSelectedAudioFile(null);
+      toast.success('Voice message audio uploaded successfully');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to upload audio');
+    } finally {
+      setUploadingAudio(false);
+    }
+  };
 
   const checkAutoDeletedTickets = useCallback(async () => {
     try {
@@ -348,6 +392,62 @@ const Dashboard = () => {
           </div>
 
 
+
+          {/* Audio Upload Panel */}
+          <div className="admin-stat-card" style={{ marginBottom: '2rem', padding: '1.5rem', borderRadius: '12px', background: 'var(--card-bg)', border: '1px solid rgba(var(--accent-rgb), 0.15)' }}>
+            <div className="admin-name" style={{ fontSize: '1.1rem', marginBottom: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent)' }}>
+              <FiVolume2 className="icon-glow" style={{ color: 'var(--accent)', fontSize: '1.3rem' }} /> WhatsApp Voice Message Settings
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                Upload a custom audio greetings message (.mp3, .wav, or .m4a). This audio will be sent automatically to every customer immediately after their PDF ticket is sent via WhatsApp.
+              </p>
+              
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', background: 'rgba(0, 0, 0, 0.2)', padding: '1rem', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem' }}>
+                  <span style={{ fontSize: '0.9rem', fontWeight: '500', color: 'var(--text-color)' }}>Current Audio:</span>
+                  {currentAudioUrl ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <span className="badge badge-success" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem' }}>Custom Active</span>
+                      <audio src={currentAudioUrl} controls style={{ height: '32px', borderRadius: '4px' }} />
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="badge badge-secondary" style={{ background: 'rgba(156, 163, 175, 0.15)', color: '#9ca3af', border: '1px solid rgba(156, 163, 175, 0.2)', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem' }}>Default</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Temple greeting voice message</span>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={handleAudioChange}
+                    style={{ display: 'none' }}
+                    id="audio-upload-input"
+                  />
+                  <label htmlFor="audio-upload-input" className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0, padding: '0.5rem 1rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '6px' }}>
+                    Choose Audio File
+                  </label>
+                  
+                  {selectedAudioFile ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--accent)', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {selectedAudioFile.name}
+                      </span>
+                      <button className="btn btn-primary btn-sm" onClick={handleAudioUpload} disabled={uploadingAudio} style={{ padding: '0.5rem 1rem', borderRadius: '6px' }}>
+                        {uploadingAudio ? 'Uploading...' : 'Upload Audio'}
+                      </button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => setSelectedAudioFile(null)} style={{ padding: '0.5rem 0.8rem', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                        Cancel
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
 
           <AddBookingForm onAdded={(b) => setBookings((prev) => [b, ...prev])} />
 

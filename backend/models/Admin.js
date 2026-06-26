@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const adminSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  audioUrl: { type: String, default: '' },
 });
 
 adminSchema.pre('save', async function (next) {

@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const protect = require('../middleware/auth');
-const { upload } = require('../config/cloudinary');
+const { upload, uploadAudio } = require('../config/cloudinary');
 const {
   getAll, create, update, remove, uploadPdf, getReminderBookings, getTotalCount, getStats, claimOrphans,
-  getHistoryFolders, getHistoryTickets, getAutoDeletedLogs, sendWhatsApp
+  getHistoryFolders, getHistoryTickets, getAutoDeletedLogs, sendWhatsApp,
+  uploadAudioController, getAudioSettingsController
 } = require('../controllers/bookingController');
 
 router.use(protect);
@@ -22,6 +23,8 @@ router.post('/', create);
 router.put('/:id', update);
 router.delete('/:id', remove);
 router.post('/upload', upload.single('pdf'), uploadPdf);
+router.post('/upload-audio', uploadAudio.single('audio'), uploadAudioController);
+router.get('/audio-settings', getAudioSettingsController);
 router.post('/:id/send-whatsapp', sendWhatsApp);
 
 module.exports = router;

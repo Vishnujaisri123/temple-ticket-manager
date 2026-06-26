@@ -693,7 +693,10 @@ const sendWhatsApp = async (req, res) => {
     }
 
     // 3b. Make request to official Meta WhatsApp API to send the Audio message
-    const audioUrl = 'https://res.cloudinary.com/df4jjxh9n/video/upload/v1782452661/temple_audio/temple_voice_message.mp3';
+    const adminObj = await Admin.findById(booking.createdBy);
+    const audioUrl = (adminObj && adminObj.audioUrl)
+      ? adminObj.audioUrl
+      : 'https://res.cloudinary.com/df4jjxh9n/video/upload/v1782452661/temple_audio/temple_voice_message.mp3';
     console.log(`[WhatsApp API] Sending voice message audio from URL: ${audioUrl}`);
     
     const audioResponse = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
@@ -747,6 +750,34 @@ const sendWhatsApp = async (req, res) => {
   }
 };
 
+const uploadAudioController = async (req, res) => {
+  if (!req.file) return res.status(400).json({ message: 'No audio file uploaded' });
+
+  try {
+    const { uploadAudioToCloudinary } = require('../config/cloudinary');
+    const filename = `audio_${req.admin.id}_${Date.now()}`;
+    const result = await uploadAudioToCloudinary(req.file.buffer, filename);
+    
+    const admin = await Admin.findByIdAndUpdate(req.admin.id, { audioUrl: result.secure_url }, { new: true });
+    if (!admin) return res.status(404).json({ message: 'Admin not found' });
+
+    res.json({ audioUrl: result.secure_url, message: 'Audio uploaded successfully' });
+  } catch (err) {
+    console.error('Audio upload failed:', err.message);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const getAudioSettingsController = async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.admin.id);
+    if (!admin) return res.status(404).json({ message: 'Admin not found' });
+    res.json({ audioUrl: admin.audioUrl || '' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getAll,
   create,
@@ -760,5 +791,7 @@ module.exports = {
   getHistoryFolders,
   getHistoryTickets,
   getAutoDeletedLogs,
-  sendWhatsApp
+  sendWhatsApp,
+  uploadAudioController,
+  getAudioSettingsController
 };

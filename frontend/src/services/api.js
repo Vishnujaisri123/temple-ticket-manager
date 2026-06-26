@@ -35,3 +35,8 @@ export const claimOrphans = () => api.post('/bookings/claim-orphans');
 export const sendWhatsApp = (id) => api.post(`/bookings/${id}/send-whatsapp`);
 export const login = (data) => api.post('/auth/login', data);
 export const seedAdmin = () => api.post('/auth/seed');
+export const uploadAudio = (formData) => api.post('/bookings/upload-audio', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
+export const getAudioSettings = () => api.get('/bookings/audio-settings');
+
