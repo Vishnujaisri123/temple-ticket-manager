@@ -693,7 +693,8 @@ const sendWhatsApp = async (req, res) => {
     }
 
     // 3b. Make request to official Meta WhatsApp API to send the Audio message
-    const adminObj = await Admin.findById(booking.createdBy);
+    const adminId = req.admin?.id || booking.createdBy;
+    const adminObj = adminId ? await Admin.findById(adminId) : null;
     const audioUrl = (adminObj && adminObj.audioUrl)
       ? adminObj.audioUrl
       : 'https://res.cloudinary.com/df4jjxh9n/video/upload/v1782452661/temple_audio/temple_voice_message.mp3';

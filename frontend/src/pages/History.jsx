@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useCallback } from 'react';
-import { getHistoryFolders, getHistoryTickets, updateBooking, deleteBooking, uploadPdf, getBookings, sendWhatsApp } from '../services/api';
+import { getHistoryFolders, getHistoryTickets, updateBooking, deleteBooking, uploadPdf, getBookings, sendWhatsApp, getAudioSettings } from '../services/api';
 import { toast } from '../components/Toast';
 
 import {
@@ -82,6 +82,16 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
     failed: 0,
     currentName: ''
   });
+
+  const [adminAudioUrl, setAdminAudioUrl] = useState('');
+
+  useEffect(() => {
+    getAudioSettings()
+      .then(({ data }) => {
+        setAdminAudioUrl(data.audioUrl || '');
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchFlatTickets = useCallback(async () => {
     setFlatLoading(true);
@@ -279,6 +289,9 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
         })
       : '—';
     const timeslot = ticket.slotTime || '—';
+    const audioPart = adminAudioUrl
+      ? `\n\n🎵 Listen to the voice message 👇\n${adminAudioUrl}`
+      : '';
 
     const message = `🛕 శ్రీ వేంకటేశ్వర స్వామి వారి ఆశీస్సులతో 🛕
 
@@ -303,7 +316,7 @@ const History = ({ initialFilter = 'all', initialSubSection = 'weekly' }) => {
 🛕 వడపల్లి శ్రీ వేంకటేశ్వర స్వామి దేవస్థానం🛕
 
 📄 Download your ticket here 👇
-${ticket.pdfUrl}`;
+${ticket.pdfUrl}${audioPart}`;
 
     // Try Web Share API first (for mobile devices to send the actual PDF file directly)
     if (navigator.share && ticket.pdfUrl) {
