@@ -39,16 +39,25 @@ const bookingSchema = new mongoose.Schema(
 bookingSchema.pre('save', async function (next) {
   if (this.isNew) {
     const referenceDate = new Date();
-    const day = referenceDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-    const diff = (day + 1) % 7; // Days since Saturday
     
-    const startOfWeek = new Date(referenceDate);
-    startOfWeek.setDate(referenceDate.getDate() - diff);
-    startOfWeek.setHours(0, 0, 0, 0);
+    // 1. Convert reference date to IST shifted time
+    const utcTime = referenceDate.getTime() + (referenceDate.getTimezoneOffset() * 60000);
+    const istTime = new Date(utcTime + (3600000 * 5.5)); // Shift by +5.5 hours
     
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
-    endOfWeek.setHours(23, 59, 59, 999);
+    // 2. Do the week start math on the IST date
+    const day = istTime.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const diff = (day + 1) % 7; // days since Saturday
+    
+    // 3. Set to Saturday 12:00 AM IST
+    const startOfWeekIST = new Date(istTime);
+    startOfWeekIST.setDate(istTime.getDate() - diff);
+    startOfWeekIST.setHours(0, 0, 0, 0);
+    
+    // 4. Convert Saturday 12:00 AM IST back to UTC for database query
+    const startOfWeek = new Date(startOfWeekIST.getTime() - (3600000 * 5.5));
+    
+    // 5. Calculate end of week in UTC (representing Friday 11:59:59.999 PM IST)
+    const endOfWeek = new Date(startOfWeek.getTime() + (7 * 24 * 3600 * 1000) - 1);
 
     const bookingsInWeek = await this.constructor.find(
       {

@@ -6,24 +6,33 @@ const Booking = require('../models/Booking');
  * @returns {Date}
  */
 const getCurrentWeekStart = (date = new Date()) => {
-  const d = new Date(date);
-  const day = d.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  // 1. Convert reference date to IST shifted time
+  const utcTime = date.getTime() + (date.getTimezoneOffset() * 60000);
+  const istTime = new Date(utcTime + (3600000 * 5.5)); // Shift by +5.5 hours
+  
+  // 2. Do the week start math on the IST date
+  const day = istTime.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
   const diff = (day + 1) % 7; // days since Saturday
-  d.setDate(d.getDate() - diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  
+  // 3. Set to Saturday 12:00 AM IST
+  const startOfWeekIST = new Date(istTime);
+  startOfWeekIST.setDate(istTime.getDate() - diff);
+  startOfWeekIST.setHours(0, 0, 0, 0);
+  
+  // 4. Convert Saturday 12:00 AM IST back to UTC for database queries
+  const startOfWeekUTC = new Date(startOfWeekIST.getTime() - (3600000 * 5.5));
+  return startOfWeekUTC;
 };
 
 /**
- * Gets the end of the current week (Friday 11:59:59.999 PM)
- * @param {Date} startOfWeek - Start of the week Date object
+ * Gets the end of the current week (Friday 11:59:59.999 PM IST) represented in UTC
+ * @param {Date} startOfWeek - Start of the week Date object in UTC
  * @returns {Date}
  */
 const getCurrentWeekEnd = (startOfWeek) => {
-  const d = new Date(startOfWeek);
-  d.setDate(d.getDate() + 6);
-  d.setHours(23, 59, 59, 999);
-  return d;
+  // Exactly 7 days minus 1 millisecond from the start of the week
+  const endOfWeekUTC = new Date(startOfWeek.getTime() + (7 * 24 * 3600 * 1000) - 1);
+  return endOfWeekUTC;
 };
 
 /**
