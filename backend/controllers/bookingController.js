@@ -105,17 +105,17 @@ const create = async (req, res) => {
 
 const update = async (req, res) => {
   const booking = await Booking.findOneAndUpdate(
-    { _id: req.params.id },
+    { _id: req.params.id, createdBy: req.admin.id },
     req.body,
     { new: true, runValidators: true }
   );
-  if (!booking) return res.status(404).json({ message: 'Booking not found' });
+  if (!booking) return res.status(404).json({ message: 'Booking not found or unauthorized' });
   res.json(booking);
 };
 
 const remove = async (req, res) => {
-  const booking = await Booking.findOneAndDelete({ _id: req.params.id });
-  if (!booking) return res.status(404).json({ message: 'Booking not found' });
+  const booking = await Booking.findOneAndDelete({ _id: req.params.id, createdBy: req.admin.id });
+  if (!booking) return res.status(404).json({ message: 'Booking not found or unauthorized' });
   if (booking.localPdfPath && fs.existsSync(booking.localPdfPath))
     fs.unlinkSync(booking.localPdfPath);
   res.json({ message: 'Deleted successfully' });
@@ -124,6 +124,12 @@ const remove = async (req, res) => {
 const uploadPdf = async (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
   const { id } = req.body;
+
+  // Verify the booking belongs to the logged-in administrator
+  const existingBooking = await Booking.findOne({ _id: id, createdBy: req.admin.id });
+  if (!existingBooking) {
+    return res.status(403).json({ message: 'Booking not found or unauthorized' });
+  }
 
   const isProduction = process.env.NODE_ENV === 'production';
   let pdfUrl = '';
@@ -596,9 +602,9 @@ const sendWhatsApp = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const booking = await Booking.findById(id);
+    const booking = await Booking.findOne({ _id: id, createdBy: req.admin.id });
     if (!booking) {
-      return res.status(404).json({ message: 'Booking not found' });
+      return res.status(404).json({ message: 'Booking not found or unauthorized' });
     }
 
     if (!booking.pdfUrl) {

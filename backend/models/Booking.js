@@ -52,7 +52,8 @@ bookingSchema.pre('save', async function (next) {
 
     const bookingsInWeek = await this.constructor.find(
       {
-        createdAt: { $gte: startOfWeek, $lte: endOfWeek }
+        createdAt: { $gte: startOfWeek, $lte: endOfWeek },
+        createdBy: this.createdBy
       },
       { serialNo: 1 }
     );
