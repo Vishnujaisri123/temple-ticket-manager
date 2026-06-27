@@ -2,6 +2,8 @@ const path = require('path');
 const fs = require('fs');
 const Booking = require('../models/Booking');
 const Admin = require('../models/Admin');
+const UnassignedPDF = require('../models/UnassignedPDF');
+const pdfService = require('../services/pdfExtractionService');
 const { uploadToCloudinary } = require('../config/cloudinary');
 
 const uploadDir = path.join(__dirname, '..', 'uploads');
@@ -379,15 +381,15 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate,
       // Completed & Paid: completed = true AND paid = true AND pdfUrl is empty/null/missing
       filter.completed = true;
       filter.paid = true;
-      filter.$or = [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }];
+      filter.pdfUploaded = false;
     } else if (ticketFilter === 'sent') {
-      // Tickets Sent: pdfUrl is not empty/null
-      filter.pdfUrl = { $nin: ['', null], $exists: true };
+      // Sent & Not Sent queues: pdf is uploaded
+      filter.pdfUploaded = true;
     } else {
-      // All Tickets (Weekly History): Shows completed, sent, and pdf-attached tickets
+      // All Tickets (Weekly History): Shows completed or pdf-uploaded tickets
       filter.$or = [
         { completed: true },
-        { pdfUrl: { $nin: ['', null], $exists: true } }
+        { pdfUploaded: true }
       ];
     }
 
@@ -410,10 +412,10 @@ const buildHistoryFilter = (adminId, subSection, dateFilter, startDate, endDate,
   } else if (subSection === 'completed') {
     // Completed Tickets (Legacy/Alias)
     filter.completed = true;
-    filter.$or = [{ pdfUrl: '' }, { pdfUrl: null }, { pdfUrl: { $exists: false } }];
+    filter.pdfUploaded = false;
   } else if (subSection === 'sent') {
     // Sent Tickets (Legacy/Alias)
-    filter.pdfUrl = { $nin: ['', null], $exists: true };
+    filter.pdfUploaded = true;
   } else if (subSection === 'reports') {
     // Reports: Shows active/non-completed/non-sent records where bookingDate <= currentLiveDate
     filter.completed = false;
@@ -785,6 +787,205 @@ const getAudioSettingsController = async (req, res) => {
   }
 };
 
+// NEW: PDF Automatic extraction helper and endpoints
+const savePdfBuffer = async (buffer, filename, isProduction, bookingId = null) => {
+  let pdfUrl = '';
+  let localPdfUrl = '';
+  let localPdfPath = '';
+
+  if (isProduction) {
+    try {
+      const result = await uploadToCloudinary(buffer, `ticket_${bookingId || Date.now()}_${Date.now()}`);
+      pdfUrl = result.secure_url;
+      localPdfUrl = result.secure_url;
+    } catch (err) {
+      console.error('[UploadHelper] Cloudinary upload failed, falling back to local storage:', err.message);
+      const localFilename = `ticket_${Date.now()}.pdf`;
+      localPdfPath = path.join(uploadDir, localFilename);
+      fs.writeFileSync(localPdfPath, buffer);
+      localPdfUrl = `${process.env.SERVER_URL || ''}/uploads/${localFilename}`;
+      pdfUrl = localPdfUrl;
+    }
+  } else {
+    const localFilename = `ticket_${Date.now()}.pdf`;
+    localPdfPath = path.join(uploadDir, localFilename);
+    fs.writeFileSync(localPdfPath, buffer);
+    localPdfUrl = `${process.env.SERVER_URL || ''}/uploads/${localFilename}`;
+    pdfUrl = localPdfUrl;
+
+    // Background upload to Cloudinary in development for dual link resilience
+    uploadToCloudinary(buffer, `ticket_${bookingId || Date.now()}_${Date.now()}`)
+      .then(result => {
+        // Handled silently
+      })
+      .catch(err => console.error('[UploadHelper] Dev background Cloudinary failed:', err.message));
+  }
+
+  return { pdfUrl, localPdfUrl, localPdfPath };
+};
+
+const autoExtractAndAssign = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const filename = req.file.originalname || `ticket_${Date.now()}.pdf`;
+    
+    console.log('[AutoExtract] Starting text extraction...');
+    const extractedText = await pdfService.extractPdfText(req.file.buffer);
+    
+    const fields = pdfService.parseFields(extractedText);
+    console.log('[AutoExtract] Parsed fields:', fields);
+
+    const matches = await pdfService.findMatches(fields, req.admin.id);
+    console.log(`[AutoExtract] Found ${matches.length} possible match(es)`);
+
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    const bestMatch = matches[0];
+    const isUniqueMatch = matches.length === 1 || (matches.length > 1 && bestMatch.confidence > matches[1].confidence);
+    
+    if (bestMatch && bestMatch.confidence >= 95 && isUniqueMatch) {
+      const targetBookingId = bestMatch.booking._id;
+      console.log(`[AutoExtract] High confidence match found: Booking ID ${targetBookingId} (Confidence: ${bestMatch.confidence}%)`);
+      
+      const fileData = await savePdfBuffer(req.file.buffer, filename, isProduction, targetBookingId);
+      
+      const updatedBooking = await Booking.findByIdAndUpdate(
+        targetBookingId,
+        {
+          pdfUrl: fileData.pdfUrl,
+          localPdfUrl: fileData.localPdfUrl,
+          localPdfPath: fileData.localPdfPath,
+          pdfUploaded: true,
+          pdfUploadedAt: new Date()
+        },
+        { new: true }
+      );
+      
+      return res.json({
+        status: 'assigned',
+        message: 'PDF matches a devotee and was assigned automatically.',
+        booking: updatedBooking,
+        confidence: bestMatch.confidence,
+        extractedData: fields
+      });
+    }
+
+    console.log('[AutoExtract] No unique high-confidence match found. Archiving as unassigned PDF.');
+    
+    const fileData = await savePdfBuffer(req.file.buffer, filename, isProduction);
+    
+    const unassignedPdf = await UnassignedPDF.create({
+      filename,
+      pdfUrl: fileData.pdfUrl || fileData.localPdfUrl,
+      localPdfPath: fileData.localPdfPath,
+      extractedData: fields,
+      createdBy: req.admin.id
+    });
+
+    if (matches.length > 0) {
+      return res.json({
+        status: 'multiple',
+        message: 'Multiple potential matches found. Please choose the correct devotee.',
+        unassignedPdfId: unassignedPdf._id,
+        matches: matches.map(m => ({
+          booking: m.booking,
+          confidence: m.confidence
+        })),
+        extractedData: fields
+      });
+    } else {
+      return res.json({
+        status: 'unassigned',
+        message: 'No matching devotee found. PDF moved to Unassigned.',
+        unassignedPdfId: unassignedPdf._id,
+        extractedData: fields
+      });
+    }
+
+  } catch (err) {
+    console.error('[AutoExtract] Error in autoExtractAndAssign:', err);
+    res.status(500).json({ message: err.message || 'Auto extraction failed' });
+  }
+};
+
+const getUnassignedPDFs = async (req, res) => {
+  try {
+    const records = await UnassignedPDF.find({ createdBy: req.admin.id }).sort({ createdAt: -1 });
+    res.json(records);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const assignPDFManually = async (req, res) => {
+  try {
+    const { unassignedPdfId, bookingId } = req.body;
+    
+    if (!unassignedPdfId || !bookingId) {
+      return res.status(400).json({ message: 'Missing unassignedPdfId or bookingId' });
+    }
+
+    const unassignedRecord = await UnassignedPDF.findOne({ _id: unassignedPdfId, createdBy: req.admin.id });
+    if (!unassignedRecord) {
+      return res.status(404).json({ message: 'Unassigned PDF record not found' });
+    }
+
+    const booking = await Booking.findOne({ _id: bookingId, createdBy: req.admin.id });
+    if (!booking) {
+      return res.status(404).json({ message: 'Target booking not found' });
+    }
+
+    const updatedBooking = await Booking.findByIdAndUpdate(
+      bookingId,
+      {
+        pdfUrl: unassignedRecord.pdfUrl,
+        localPdfUrl: unassignedRecord.pdfUrl,
+        localPdfPath: unassignedRecord.localPdfPath,
+        pdfUploaded: true,
+        pdfUploadedAt: new Date()
+      },
+      { new: true }
+    );
+
+    await UnassignedPDF.findByIdAndDelete(unassignedPdfId);
+
+    res.json({
+      success: true,
+      message: 'PDF manually assigned successfully.',
+      booking: updatedBooking
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const deleteUnassignedPDF = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const record = await UnassignedPDF.findOne({ _id: id, createdBy: req.admin.id });
+    if (!record) {
+      return res.status(404).json({ message: 'Unassigned PDF record not found' });
+    }
+
+    if (record.localPdfPath && fs.existsSync(record.localPdfPath)) {
+      try {
+        fs.unlinkSync(record.localPdfPath);
+      } catch (err) {
+        console.error('Failed to delete local unassigned PDF file:', err.message);
+      }
+    }
+
+    await UnassignedPDF.findByIdAndDelete(id);
+    res.json({ success: true, message: 'Unassigned PDF deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getAll,
   create,
@@ -800,5 +1001,9 @@ module.exports = {
   getAutoDeletedLogs,
   sendWhatsApp,
   uploadAudioController,
-  getAudioSettingsController
+  getAudioSettingsController,
+  autoExtractAndAssign,
+  getUnassignedPDFs,
+  assignPDFManually,
+  deleteUnassignedPDF
 };

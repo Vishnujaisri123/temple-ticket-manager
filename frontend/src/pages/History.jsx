@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useCallback } from 'react';
-import { getHistoryFolders, getHistoryTickets, updateBooking, deleteBooking, uploadPdf, getBookings, sendWhatsApp, getAudioSettings } from '../services/api';
+import { getHistoryFolders, getHistoryTickets, updateBooking, deleteBooking, uploadPdf, getBookings, sendWhatsApp, getAudioSettings, autoExtractPdf, getUnassignedPDFs, assignPDFManually, deleteUnassignedPDF } from '../services/api';
 import { toast } from '../components/Toast';
 
 import {
@@ -93,6 +93,18 @@ const History = ({
   });
 
   const [adminAudioUrl, setAdminAudioUrl] = useState('');
+  
+  // PDF Auto Extraction & Manual Assignment States
+  const [dragOverZone, setDragOverZone] = useState(false);
+  const [extractState, setExtractState] = useState('idle'); // 'idle' | 'extracting' | 'matching' | 'assigning' | 'success' | 'multiple' | 'unassigned'
+  const [multipleMatches, setMultipleMatches] = useState([]);
+  const [unassignedPdfId, setUnassignedPdfId] = useState(null);
+  const [extractedFields, setExtractedFields] = useState(null);
+  const [unassignedPdfs, setUnassignedPdfs] = useState([]);
+  const [showUnassignedPanel, setShowUnassignedPanel] = useState(true);
+  const [isAssigningPdf, setIsAssigningPdf] = useState(null); // stores pdf object currently being manually assigned
+  const [manualSearch, setManualSearch] = useState('');
+  const [activeBookings, setActiveBookings] = useState([]);
 
   useEffect(() => {
     getAudioSettings()
@@ -126,6 +138,144 @@ const History = ({
     window.addEventListener('bookingUpdated', handleBookingUpdated);
     return () => window.removeEventListener('bookingUpdated', handleBookingUpdated);
   }, []);
+
+  const fetchUnassignedPdfs = useCallback(async () => {
+    try {
+      const { data } = await getUnassignedPDFs();
+      setUnassignedPdfs(data || []);
+    } catch (err) {
+      console.error('Failed to fetch unassigned PDFs:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUnassignedPdfs();
+  }, [fetchUnassignedPdfs]);
+
+  const fetchActiveBookings = async () => {
+    try {
+      const { data } = await getBookings({ limit: 100 });
+      const unassignedBookings = data.bookings?.filter(b => !b.pdfUploaded) || [];
+      setActiveBookings(unassignedBookings);
+    } catch (err) {
+      console.error('Failed to fetch active bookings:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isAssigningPdf) {
+      fetchActiveBookings();
+    }
+  }, [isAssigningPdf]);
+
+  const handleAutoExtractUpload = async (file) => {
+    if (!file || file.type !== 'application/pdf') {
+      toast.error('Only PDF files are supported.');
+      return;
+    }
+
+    setExtractState('extracting');
+    const formData = new FormData();
+    formData.append('pdf', file);
+
+    try {
+      // Step-by-step visual animation transitions
+      setTimeout(() => setExtractState('matching'), 800);
+      setTimeout(() => setExtractState('assigning'), 1600);
+
+      const { data } = await autoExtractPdf(formData);
+
+      setTimeout(() => {
+        if (data.status === 'assigned') {
+          setExtractState('success');
+          toast.success('PDF assigned automatically!');
+          
+          window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: data.booking }));
+          if (ticketFilter === 'sent') {
+            fetchFlatTickets();
+          } else {
+            fetchFolders();
+          }
+          fetchUnassignedPdfs();
+        } else if (data.status === 'multiple') {
+          setExtractState('multiple');
+          setMultipleMatches(data.matches);
+          setUnassignedPdfId(data.unassignedPdfId);
+          setExtractedFields(data.extractedData);
+          fetchUnassignedPdfs();
+        } else {
+          setExtractState('unassigned');
+          setUnassignedPdfId(data.unassignedPdfId);
+          setExtractedFields(data.extractedData);
+          toast.info('No matching ticket found. Saved to Unassigned PDFs.');
+          fetchUnassignedPdfs();
+        }
+      }, 2400);
+
+    } catch (err) {
+      setExtractState('idle');
+      toast.error(err.response?.data?.message || 'PDF extraction failed');
+    }
+  };
+
+  const handleAssignManual = async (bookingId) => {
+    if (!isAssigningPdf || !bookingId) return;
+    const toastId = toast.loading ? toast.loading('Assigning PDF to devotee...') : null;
+    try {
+      const { data } = await assignPDFManually(isAssigningPdf._id, bookingId);
+      toast.success('PDF assigned successfully!');
+      if (toastId) toast.dismiss(toastId);
+      
+      window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: data.booking }));
+      if (ticketFilter === 'sent') {
+        fetchFlatTickets();
+      } else {
+        fetchFolders();
+      }
+      
+      setIsAssigningPdf(null);
+      setManualSearch('');
+      fetchUnassignedPdfs();
+    } catch (err) {
+      if (toastId) toast.dismiss(toastId);
+      toast.error(err.response?.data?.message || 'Failed to assign PDF');
+    }
+  };
+
+  const handleDeleteUnassignedPdf = async (id) => {
+    if (!window.confirm('Delete this unassigned PDF?')) return;
+    try {
+      await deleteUnassignedPDF(id);
+      toast.success('Unassigned PDF deleted');
+      fetchUnassignedPdfs();
+    } catch (err) {
+      toast.error('Failed to delete unassigned PDF');
+    }
+  };
+
+  const handleDeletePdf = async () => {
+    if (!selectedTicket) return;
+    if (!window.confirm('Are you sure you want to delete this PDF?')) return;
+    try {
+      const { data } = await updateBooking(selectedTicket._id, {
+        pdfUrl: '',
+        localPdfUrl: '',
+        localPdfPath: '',
+        pdfUploaded: false,
+        pdfUploadedAt: null
+      });
+      setSelectedTicket(data);
+      window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: data }));
+      toast.success('PDF deleted successfully!');
+      if (ticketFilter === 'sent') {
+        fetchFlatTickets();
+      } else {
+        fetchFolders();
+      }
+    } catch (err) {
+      toast.error('Failed to delete PDF');
+    }
+  };
 
   const handleRetryQueueSend = async (ticketId) => {
     const toastId = toast.loading ? toast.loading('Re-adding ticket to sending queue...') : null;
@@ -862,6 +1012,320 @@ ${ticket.pdfUrl}${audioPart}`;
         </>
       )}
 
+      {/* Monarch Blue Styles for Scanning and Glowing UI */}
+      <style>{`
+        @keyframes scan-beam {
+          0% { top: 0%; }
+          50% { top: 100%; }
+          100% { top: 0%; }
+        }
+        @keyframes glow-pulse {
+          0% { box-shadow: 0 0 12px rgba(59, 130, 246, 0.2); }
+          50% { box-shadow: 0 0 22px rgba(59, 130, 246, 0.5); }
+          100% { box-shadow: 0 0 12px rgba(59, 130, 246, 0.2); }
+        }
+        .shadow-monarch-dropzone {
+          background: rgba(13, 27, 42, 0.35);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border: 2px dashed rgba(59, 130, 246, 0.4);
+          border-radius: 12px;
+          padding: 2.2rem;
+          text-align: center;
+          position: relative;
+          overflow: hidden;
+          transition: all 0.3s ease;
+          animation: glow-pulse 3s infinite;
+          color: #fff;
+        }
+        .shadow-monarch-dropzone.drag-over {
+          border-color: #3b82f6;
+          background: rgba(13, 27, 42, 0.55);
+          box-shadow: 0 0 30px rgba(59, 130, 246, 0.75) !important;
+        }
+        .scanning-beam {
+          position: absolute;
+          left: 0;
+          width: 100%;
+          height: 3px;
+          background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+          box-shadow: 0 0 8px #3b82f6, 0 0 16px #3b82f6;
+          animation: scan-beam 2.2s infinite linear;
+          pointer-events: none;
+        }
+        .energy-pulse {
+          animation: pulse 1.5s infinite ease-in-out;
+        }
+      `}</style>
+
+      {/* Shadow Monarch Drag & Drop PDF Scan Zone */}
+      <div style={{ marginBottom: '1.5rem' }}>
+        <div 
+          className={`shadow-monarch-dropzone ${dragOverZone ? 'drag-over' : ''}`}
+          onDragOver={(e) => { e.preventDefault(); setDragOverZone(true); }}
+          onDragLeave={() => setDragOverZone(false)}
+          onDrop={(e) => { e.preventDefault(); setDragOverZone(false); handleAutoExtractUpload(e.dataTransfer.files[0]); }}
+          onClick={() => document.getElementById('auto-extract-upload-input').click()}
+          style={{ cursor: 'pointer' }}
+        >
+          {extractState !== 'idle' && extractState !== 'success' && extractState !== 'multiple' && extractState !== 'unassigned' && (
+            <div className="scanning-beam" />
+          )}
+          
+          <input 
+            type="file" 
+            accept="application/pdf" 
+            id="auto-extract-upload-input" 
+            style={{ display: 'none' }} 
+            onChange={(e) => handleAutoExtractUpload(e.target.files[0])} 
+          />
+
+          {extractState === 'idle' && (
+            <div>
+              <FiFileText style={{ fontSize: '2.2rem', color: '#3b82f6', marginBottom: '0.4rem', filter: 'drop-shadow(0 0 6px rgba(59, 130, 246, 0.5))' }} />
+              <h3 style={{ margin: '0.2rem 0', fontSize: '0.92rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>DRAG & DROP TICKET PDF</h3>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>or click to browse. System will auto-extract, match, and link devotees.</p>
+            </div>
+          )}
+
+          {extractState === 'extracting' && (
+            <div>
+              <FiActivity style={{ fontSize: '2.2rem', color: '#3b82f6', marginBottom: '0.4rem' }} className="icon-spin" />
+              <h3 style={{ margin: '0.2rem 0', fontSize: '0.92rem', fontWeight: 700, color: '#3b82f6' }} className="energy-pulse">EXTRACTING TICKET DATA...</h3>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>Primary: pdf-parse | Fallback: Tesseract OCR</p>
+            </div>
+          )}
+
+          {extractState === 'matching' && (
+            <div>
+              <FiSearch style={{ fontSize: '2.2rem', color: '#6366f1', marginBottom: '0.4rem' }} className="energy-pulse" />
+              <h3 style={{ margin: '0.2rem 0', fontSize: '0.92rem', fontWeight: 700, color: '#6366f1' }} className="energy-pulse">MATCHING DEVOTEE...</h3>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>Running 4-priority fuzzy match algorithm</p>
+            </div>
+          )}
+
+          {extractState === 'assigning' && (
+            <div>
+              <FiLink style={{ fontSize: '2.2rem', color: '#a855f7', marginBottom: '0.4rem' }} className="energy-pulse" />
+              <h3 style={{ margin: '0.2rem 0', fontSize: '0.92rem', fontWeight: 700, color: '#a855f7' }} className="energy-pulse">ASSIGNING TICKET...</h3>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>Linking PDF to verified database record</p>
+            </div>
+          )}
+
+          {extractState === 'success' && (
+            <div onClick={(e) => { e.stopPropagation(); setExtractState('idle'); }}>
+              <FiCheckCircle style={{ fontSize: '2.2rem', color: '#10b981', marginBottom: '0.4rem', filter: 'drop-shadow(0 0 8px rgba(16, 185, 129, 0.5))' }} />
+              <h3 style={{ margin: '0.2rem 0', fontSize: '1rem', fontWeight: 700, color: '#10b981' }}>PDF ASSIGNED SUCCESSFULLY</h3>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>Click anywhere to scan another ticket.</p>
+            </div>
+          )}
+
+          {extractState === 'multiple' && (
+            <div onClick={(e) => { e.stopPropagation(); }}>
+              <FiAlertCircle style={{ fontSize: '2.2rem', color: '#f59e0b', marginBottom: '0.4rem' }} />
+              <h3 style={{ margin: '0.2rem 0', fontSize: '0.92rem', fontWeight: 700, color: '#f59e0b' }}>MULTIPLE MATCHES FOUND</h3>
+              <p style={{ margin: '0 0 0.4rem 0', fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>Select the correct devotee below or click to close.</p>
+              <button className="btn btn-sm btn-outline" onClick={() => setExtractState('idle')} style={{ borderColor: '#f59e0b', color: '#f59e0b', padding: '0.15rem 0.4rem', fontSize: '0.7rem' }}>Clear</button>
+            </div>
+          )}
+
+          {extractState === 'unassigned' && (
+            <div onClick={(e) => { e.stopPropagation(); setExtractState('idle'); }}>
+              <FiFolderMinus style={{ fontSize: '2.2rem', color: '#ef4444', marginBottom: '0.4rem' }} />
+              <h3 style={{ margin: '0.2rem 0', fontSize: '0.92rem', fontWeight: 700, color: '#ef4444' }}>NO VERIFIED MATCH FOUND</h3>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>PDF saved under Unassigned PDFs. Click anywhere to reset.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Unassigned PDFs Collapsible Section */}
+      {unassignedPdfs.length > 0 && (
+        <div style={{ marginBottom: '1.5rem', background: 'rgba(0,0,0,0.15)', border: '1.5px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+          <div 
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.65rem 1.1rem', cursor: 'pointer', background: 'rgba(255,255,255,0.02)' }}
+            onClick={() => setShowUnassignedPanel(!showUnassignedPanel)}
+          >
+            <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+              <FiFolderMinus /> Unassigned PDFs ({unassignedPdfs.length})
+            </h4>
+            {showUnassignedPanel ? <FiChevronUp /> : <FiChevronDown />}
+          </div>
+          
+          {showUnassignedPanel && (
+            <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem', borderTop: '1px solid var(--border)' }}>
+              {unassignedPdfs.map(pdf => (
+                <div key={pdf._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.65rem 0.85rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px', flexWrap: 'wrap', gap: '0.6rem' }}>
+                  <div style={{ flex: 1, minWidth: '180px' }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#f59e0b', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', wordBreak: 'break-all' }}>
+                      <FiFileText /> {pdf.filename}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.6rem', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem', flexWrap: 'wrap' }}>
+                      {pdf.extractedData?.member1 && <span><strong>Devotee:</strong> {pdf.extractedData.member1}</span>}
+                      {pdf.extractedData?.gothram && <span><strong>Gothram:</strong> {pdf.extractedData.gothram}</span>}
+                      {pdf.extractedData?.visitDate && <span><strong>Date:</strong> {formatDateStr(pdf.extractedData.visitDate)}</span>}
+                      {pdf.extractedData?.slotTime && <span><strong>Time:</strong> {pdf.extractedData.slotTime}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.3rem' }}>
+                    <button 
+                      className="btn btn-sm btn-outline" 
+                      onClick={() => window.open(pdf.pdfUrl, '_blank')}
+                      style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem' }}
+                    >
+                      View
+                    </button>
+                    <button 
+                      className="btn btn-sm btn-primary" 
+                      onClick={() => setIsAssigningPdf(pdf)}
+                      style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem', background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)', border: 'none' }}
+                    >
+                      Assign Manually
+                    </button>
+                    <button 
+                      className="btn btn-sm btn-danger btn-icon" 
+                      onClick={() => handleDeleteUnassignedPdf(pdf._id)}
+                      style={{ padding: '0.15rem 0.35rem' }}
+                    >
+                      <FiTrash2 />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Multiple Matches Selection Dialog */}
+      {multipleMatches.length > 0 && (
+        <div className="history-modal-overlay" onClick={() => { setMultipleMatches([]); setExtractState('idle'); }} style={{ zIndex: 10000 }}>
+          <div className="history-modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+            <div className="history-modal-header">
+              <h3 className="history-modal-title" style={{ color: '#f59e0b', fontSize: '1rem' }}>Select Devotee</h3>
+              <button className="history-modal-close" onClick={() => { setMultipleMatches([]); setExtractState('idle'); }}>
+                <FiX />
+              </button>
+            </div>
+            <div className="history-modal-body">
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.85rem' }}>
+                We found multiple active bookings matching the extracted fields. Please select the correct devotee:
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {multipleMatches.map(({ booking, confidence }) => (
+                  <div 
+                    key={booking._id} 
+                    onClick={async () => {
+                      const toastId = toast.loading ? toast.loading('Assigning PDF...') : null;
+                      try {
+                        const { data } = await assignPDFManually(unassignedPdfId, booking._id);
+                        toast.success('PDF assigned successfully!');
+                        if (toastId) toast.dismiss(toastId);
+                        
+                        window.dispatchEvent(new CustomEvent('bookingUpdated', { detail: data.booking }));
+                        if (ticketFilter === 'sent') {
+                          fetchFlatTickets();
+                        } else {
+                          fetchFolders();
+                        }
+                        
+                        setMultipleMatches([]);
+                        setExtractState('idle');
+                        fetchUnassignedPdfs();
+                      } catch (err) {
+                        if (toastId) toast.dismiss(toastId);
+                        toast.error(err.response?.data?.message || 'Failed to assign PDF');
+                      }
+                    }}
+                    style={{ padding: '0.65rem 0.85rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.01)'}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>{booking.member1}{booking.member2 ? ` & ${booking.member2}` : ''}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                        S.No: {booking.serialNo} | Visit: {formatDateStr(booking.visitDate)} | Gothram: {booking.gothram || '—'}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 'bold', color: '#10b981' }}>{confidence}% match</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Assignment devotee picker Dialog */}
+      {isAssigningPdf && (
+        <div className="history-modal-overlay" onClick={() => setIsAssigningPdf(null)} style={{ zIndex: 10000 }}>
+          <div className="history-modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+            <div className="history-modal-header">
+              <h3 className="history-modal-title" style={{ fontSize: '1rem' }}>Manual PDF Assignment</h3>
+              <button className="history-modal-close" onClick={() => setIsAssigningPdf(null)}>
+                <FiX />
+              </button>
+            </div>
+            <div className="history-modal-body">
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.85rem' }}>
+                Assigning: <strong style={{ color: '#f59e0b' }}>{isAssigningPdf.filename}</strong>
+              </p>
+              
+              <div style={{ marginBottom: '0.85rem' }}>
+                <input 
+                  type="text" 
+                  placeholder="Search active devotees by name/phone/gothram..." 
+                  value={manualSearch}
+                  onChange={(e) => setManualSearch(e.target.value)}
+                  style={{ width: '100%', padding: '0.45rem 0.85rem', borderRadius: '8px', border: '1.5px solid var(--border)', fontSize: '0.82rem', background: 'var(--surface)', color: 'var(--text)' }}
+                />
+              </div>
+
+              <div style={{ maxHeight: '250px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.4rem', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.4rem' }}>
+                {activeBookings
+                  .filter(b => {
+                    const term = manualSearch.toLowerCase();
+                    return (
+                      b.member1?.toLowerCase().includes(term) ||
+                      b.member2?.toLowerCase().includes(term) ||
+                      b.phone?.includes(term) ||
+                      b.gothram?.toLowerCase().includes(term)
+                    );
+                  })
+                  .map(b => (
+                    <div 
+                      key={b._id} 
+                      onClick={() => handleAssignManual(b._id)}
+                      style={{ padding: '0.45rem 0.65rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '6px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.01)'}
+                    >
+                      <div>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 600 }}>{b.member1}{b.member2 ? ` & ${b.member2}` : ''}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          S.No: {b.serialNo} | Visit: {formatDateStr(b.visitDate)} | Gothram: {b.gothram || '—'}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '0.7rem', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', padding: '0.15rem 0.35rem', borderRadius: '4px', fontWeight: 600 }}>Assign</span>
+                    </div>
+                  ))}
+                {activeBookings.filter(b => {
+                  const term = manualSearch.toLowerCase();
+                  return (
+                    b.member1?.toLowerCase().includes(term) ||
+                    b.member2?.toLowerCase().includes(term) ||
+                    b.phone?.includes(term) ||
+                    b.gothram?.toLowerCase().includes(term)
+                  );
+                }).length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '0.85rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>No active devotees found matching search.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {subSection === 'weekly' && ticketFilter === 'sent' ? (
         <div>
           {/* Queue Status summary row */}
@@ -1492,16 +1956,6 @@ ${ticket.pdfUrl}${audioPart}`;
                     >
                       View PDF
                     </button>
-                    <a 
-                      href={selectedTicket.pdfUrl} 
-                      download 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="btn btn-outline btn-sm" 
-                      style={{ flex: '1 1 calc(33% - 0.5rem)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', pointerEvents: selectedTicket.queueStatus === 'sending' ? 'none' : 'auto', opacity: selectedTicket.queueStatus === 'sending' ? 0.5 : 1 }}
-                    >
-                      Download PDF
-                    </a>
                     <button 
                       className="btn btn-warning btn-sm" 
                       style={{ flex: '1 1 calc(33% - 0.5rem)' }} 
@@ -1510,11 +1964,20 @@ ${ticket.pdfUrl}${audioPart}`;
                     >
                       Replace PDF
                     </button>
+                    <button 
+                      className="btn btn-danger btn-sm" 
+                      style={{ flex: '1 1 calc(33% - 0.5rem)', background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)', border: 'none' }} 
+                      onClick={handleDeletePdf}
+                      disabled={selectedTicket.queueStatus === 'sending'}
+                    >
+                      Delete PDF
+                    </button>
                   </>
                 ) : (
                   <button 
                     className="btn btn-primary btn-sm" 
                     style={{ flex: '1 1 100%' }} 
+                    onChange={handlePdfUpload}
                     onClick={() => document.getElementById('modal-pdf-upload').click()}
                     disabled={selectedTicket.queueStatus === 'sending'}
                   >
@@ -1522,44 +1985,21 @@ ${ticket.pdfUrl}${audioPart}`;
                   </button>
                 )}
 
-                {/* Section Specific Action buttons */}
-                {subSection === 'reports' && (
-                  <>
-                    <button 
-                      className={`btn btn-sm ${selectedTicket.paid ? 'btn-outline' : 'btn-success'}`} 
-                      style={{ flex: '1 1 calc(50% - 0.5rem)' }} 
-                      onClick={() => handleStatusToggle('paid', selectedTicket.paid)}
-                    >
-                      {selectedTicket.paid ? 'Mark Unpaid' : 'Mark Paid'}
-                    </button>
-                    <button 
-                      className={`btn btn-sm ${selectedTicket.completed ? 'btn-outline' : 'btn-success'}`} 
-                      style={{ flex: '1 1 calc(50% - 0.5rem)' }} 
-                      onClick={() => handleStatusToggle('completed', selectedTicket.completed)}
-                    >
-                      {selectedTicket.completed ? 'Mark Not Completed' : 'Mark Completed'}
-                    </button>
-                  </>
-                )}
-
-                {subSection === 'further' && (
-                  <>
-                    <button 
-                      className={`btn btn-sm ${selectedTicket.paid ? 'btn-outline' : 'btn-success'}`}
-                      style={{ flex: '1 1 calc(50% - 0.5rem)' }} 
-                      onClick={() => handleStatusToggle('paid', selectedTicket.paid)}
-                    >
-                      Change Paid Status
-                    </button>
-                    <button 
-                      className={`btn btn-sm ${selectedTicket.completed ? 'btn-outline' : 'btn-success'}`}
-                      style={{ flex: '1 1 calc(50% - 0.5rem)' }} 
-                      onClick={() => handleStatusToggle('completed', selectedTicket.completed)}
-                    >
-                      Change Completed Status
-                    </button>
-                  </>
-                )}
+                {/* Paid & Completed Status Toggles */}
+                <button 
+                  className={`btn btn-sm ${selectedTicket.paid ? 'btn-outline' : 'btn-success'}`} 
+                  style={{ flex: '1 1 calc(50% - 0.5rem)' }} 
+                  onClick={() => handleStatusToggle('paid', selectedTicket.paid)}
+                >
+                  {selectedTicket.paid ? 'Mark Unpaid' : 'Mark Paid'}
+                </button>
+                <button 
+                  className={`btn btn-sm ${selectedTicket.completed ? 'btn-outline' : 'btn-success'}`} 
+                  style={{ flex: '1 1 calc(50% - 0.5rem)' }} 
+                  onClick={() => handleStatusToggle('completed', selectedTicket.completed)}
+                >
+                  {selectedTicket.completed ? 'Mark Not Completed' : 'Mark Completed'}
+                </button>
 
                 <button 
                   className="btn btn-danger btn-sm" 

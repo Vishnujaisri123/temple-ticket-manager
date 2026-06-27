@@ -5,7 +5,8 @@ const { upload, uploadAudio } = require('../config/cloudinary');
 const {
   getAll, create, update, remove, uploadPdf, getReminderBookings, getTotalCount, getStats, claimOrphans,
   getHistoryFolders, getHistoryTickets, getAutoDeletedLogs, sendWhatsApp,
-  uploadAudioController, getAudioSettingsController
+  uploadAudioController, getAudioSettingsController,
+  autoExtractAndAssign, getUnassignedPDFs, assignPDFManually, deleteUnassignedPDF
 } = require('../controllers/bookingController');
 
 router.use(protect);
@@ -18,11 +19,15 @@ router.get('/reminders', getReminderBookings);
 router.get('/history/folders', getHistoryFolders);
 router.get('/history/tickets', getHistoryTickets);
 router.get('/history/auto-deleted', getAutoDeletedLogs);
+router.get('/unassigned-pdfs', getUnassignedPDFs);
+router.delete('/unassigned-pdfs/:id', deleteUnassignedPDF);
+router.post('/assign-manual', assignPDFManually);
 router.get('/', getAll);
 router.post('/', create);
 router.put('/:id', update);
 router.delete('/:id', remove);
 router.post('/upload', upload.single('pdf'), uploadPdf);
+router.post('/auto-extract', upload.single('pdf'), autoExtractAndAssign);
 router.post('/upload-audio', uploadAudio.single('audio'), uploadAudioController);
 router.get('/audio-settings', getAudioSettingsController);
 router.post('/:id/send-whatsapp', sendWhatsApp);

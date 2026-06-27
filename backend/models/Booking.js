@@ -23,6 +23,7 @@ const bookingSchema = new mongoose.Schema(
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
     pdfUrl: { type: String, default: '' },
     pdfUploaded: { type: Boolean, default: false },
+    pdfUploadedAt: { type: Date, default: null },
     localPdfUrl: { type: String, default: '' },
     localPdfPath: { type: String, default: '' },
     reminderSent: { type: Boolean, default: false },

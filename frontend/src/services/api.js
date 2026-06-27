@@ -39,4 +39,10 @@ export const uploadAudio = (formData) => api.post('/bookings/upload-audio', form
   headers: { 'Content-Type': 'multipart/form-data' }
 });
 export const getAudioSettings = () => api.get('/bookings/audio-settings');
+export const autoExtractPdf = (formData) => api.post('/bookings/auto-extract', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
+export const getUnassignedPDFs = () => api.get('/bookings/unassigned-pdfs');
+export const assignPDFManually = (unassignedPdfId, bookingId) => api.post('/bookings/assign-manual', { unassignedPdfId, bookingId });
+export const deleteUnassignedPDF = (id) => api.delete(`/bookings/unassigned-pdfs/${id}`);
 
