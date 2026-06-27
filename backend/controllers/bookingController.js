@@ -882,15 +882,17 @@ const autoExtractAndAssign = async (req, res) => {
       pdfUrl: fileData.pdfUrl || fileData.localPdfUrl,
       localPdfPath: fileData.localPdfPath,
       extractedData: fields,
+      reason: (bestMatch && bestMatch.confidence >= 70) ? 'Partial or multiple matches require manual selection.' : 'No ticket found with matching data.',
+      matchReport: bestMatch ? bestMatch.matchReport : null,
       createdBy: req.admin.id
     });
 
-    if (matches.length > 0) {
+    if (bestMatch && bestMatch.confidence >= 70) {
       return res.json({
         status: 'multiple',
-        message: 'Multiple potential matches found. Please choose the correct devotee.',
+        message: 'Multiple or partial matches found. Please choose the correct devotee.',
         unassignedPdfId: unassignedPdf._id,
-        matches: matches.map(m => ({
+        matches: matches.filter(m => m.confidence >= 70).map(m => ({
           booking: m.booking,
           confidence: m.confidence
         })),

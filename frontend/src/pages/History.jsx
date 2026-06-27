@@ -1019,29 +1019,34 @@ ${ticket.pdfUrl}${audioPart}`;
           50% { top: 100%; }
           100% { top: 0%; }
         }
-        @keyframes glow-pulse {
-          0% { box-shadow: 0 0 12px rgba(59, 130, 246, 0.2); }
-          50% { box-shadow: 0 0 22px rgba(59, 130, 246, 0.5); }
-          100% { box-shadow: 0 0 12px rgba(59, 130, 246, 0.2); }
-        }
+        @keyframes glow-pulse-blue { 0%, 100% { box-shadow: 0 0 12px rgba(59, 130, 246, 0.2); } 50% { box-shadow: 0 0 22px rgba(59, 130, 246, 0.5); } }
+        @keyframes glow-pulse-green { 0%, 100% { box-shadow: 0 0 12px rgba(16, 185, 129, 0.2); } 50% { box-shadow: 0 0 22px rgba(16, 185, 129, 0.5); } }
+        @keyframes glow-pulse-orange { 0%, 100% { box-shadow: 0 0 12px rgba(245, 158, 11, 0.2); } 50% { box-shadow: 0 0 22px rgba(245, 158, 11, 0.5); } }
+        @keyframes glow-pulse-red { 0%, 100% { box-shadow: 0 0 12px rgba(239, 68, 68, 0.2); } 50% { box-shadow: 0 0 22px rgba(239, 68, 68, 0.5); } }
+
         .shadow-monarch-dropzone {
           background: rgba(13, 27, 42, 0.35);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
-          border: 2px dashed rgba(59, 130, 246, 0.4);
+          border: 2px dashed;
           border-radius: 12px;
           padding: 2.2rem;
           text-align: center;
           position: relative;
           overflow: hidden;
           transition: all 0.3s ease;
-          animation: glow-pulse 3s infinite;
           color: #fff;
         }
+        .shadow-monarch-dropzone.glow-blue { border-color: rgba(59, 130, 246, 0.4); animation: glow-pulse-blue 3s infinite; }
+        .shadow-monarch-dropzone.glow-green { border-color: rgba(16, 185, 129, 0.6); animation: glow-pulse-green 3s infinite; }
+        .shadow-monarch-dropzone.glow-orange { border-color: rgba(245, 158, 11, 0.6); animation: glow-pulse-orange 3s infinite; }
+        .shadow-monarch-dropzone.glow-red { border-color: rgba(239, 68, 68, 0.6); animation: glow-pulse-red 3s infinite; }
+
         .shadow-monarch-dropzone.drag-over {
-          border-color: #3b82f6;
+          border-color: #3b82f6 !important;
           background: rgba(13, 27, 42, 0.55);
           box-shadow: 0 0 30px rgba(59, 130, 246, 0.75) !important;
+          animation: none !important;
         }
         .scanning-beam {
           position: absolute;
@@ -1061,7 +1066,12 @@ ${ticket.pdfUrl}${audioPart}`;
       {/* Shadow Monarch Drag & Drop PDF Scan Zone */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div 
-          className={`shadow-monarch-dropzone ${dragOverZone ? 'drag-over' : ''}`}
+          className={`shadow-monarch-dropzone ${dragOverZone ? 'drag-over' : ''} ${
+            extractState === 'success' ? 'glow-green' :
+            extractState === 'multiple' ? 'glow-orange' :
+            extractState === 'unassigned' ? 'glow-red' :
+            'glow-blue'
+          }`}
           onDragOver={(e) => { e.preventDefault(); setDragOverZone(true); }}
           onDragLeave={() => setDragOverZone(false)}
           onDrop={(e) => { e.preventDefault(); setDragOverZone(false); handleAutoExtractUpload(e.dataTransfer.files[0]); }}
@@ -1091,16 +1101,16 @@ ${ticket.pdfUrl}${audioPart}`;
           {extractState === 'extracting' && (
             <div>
               <FiActivity style={{ fontSize: '2.2rem', color: '#3b82f6', marginBottom: '0.4rem' }} className="icon-spin" />
-              <h3 style={{ margin: '0.2rem 0', fontSize: '0.92rem', fontWeight: 700, color: '#3b82f6' }} className="energy-pulse">EXTRACTING TICKET DATA...</h3>
-              <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>Primary: pdf-parse | Fallback: Tesseract OCR</p>
+              <h3 style={{ margin: '0.2rem 0', fontSize: '0.92rem', fontWeight: 700, color: '#3b82f6' }} className="energy-pulse">EXTRACTING SHADOW DATA...</h3>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>Reading metadata & properties</p>
             </div>
           )}
 
           {extractState === 'matching' && (
             <div>
               <FiSearch style={{ fontSize: '2.2rem', color: '#6366f1', marginBottom: '0.4rem' }} className="energy-pulse" />
-              <h3 style={{ margin: '0.2rem 0', fontSize: '0.92rem', fontWeight: 700, color: '#6366f1' }} className="energy-pulse">MATCHING DEVOTEE...</h3>
-              <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>Running 4-priority fuzzy match algorithm</p>
+              <h3 style={{ margin: '0.2rem 0', fontSize: '0.92rem', fontWeight: 700, color: '#6366f1' }} className="energy-pulse">SEARCHING MONARCH ARCHIVE...</h3>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>Running 5-tier matching priority system</p>
             </div>
           )}
 
@@ -1115,16 +1125,16 @@ ${ticket.pdfUrl}${audioPart}`;
           {extractState === 'success' && (
             <div onClick={(e) => { e.stopPropagation(); setExtractState('idle'); }}>
               <FiCheckCircle style={{ fontSize: '2.2rem', color: '#10b981', marginBottom: '0.4rem', filter: 'drop-shadow(0 0 8px rgba(16, 185, 129, 0.5))' }} />
-              <h3 style={{ margin: '0.2rem 0', fontSize: '1rem', fontWeight: 700, color: '#10b981' }}>PDF ASSIGNED SUCCESSFULLY</h3>
-              <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>Click anywhere to scan another ticket.</p>
+              <h3 style={{ margin: '0.2rem 0', fontSize: '1rem', fontWeight: 700, color: '#10b981' }}>MATCH FOUND</h3>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>PDF Assigned Successfully. Click anywhere to scan another.</p>
             </div>
           )}
 
           {extractState === 'multiple' && (
             <div onClick={(e) => { e.stopPropagation(); }}>
               <FiAlertCircle style={{ fontSize: '2.2rem', color: '#f59e0b', marginBottom: '0.4rem' }} />
-              <h3 style={{ margin: '0.2rem 0', fontSize: '0.92rem', fontWeight: 700, color: '#f59e0b' }}>MULTIPLE MATCHES FOUND</h3>
-              <p style={{ margin: '0 0 0.4rem 0', fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>Select the correct devotee below or click to close.</p>
+              <h3 style={{ margin: '0.2rem 0', fontSize: '0.92rem', fontWeight: 700, color: '#f59e0b' }}>PARTIAL OR MULTIPLE MATCHES</h3>
+              <p style={{ margin: '0 0 0.4rem 0', fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>Confidence between 70-95%. Select correct devotee below.</p>
               <button className="btn btn-sm btn-outline" onClick={() => setExtractState('idle')} style={{ borderColor: '#f59e0b', color: '#f59e0b', padding: '0.15rem 0.4rem', fontSize: '0.7rem' }}>Clear</button>
             </div>
           )}
@@ -1132,8 +1142,8 @@ ${ticket.pdfUrl}${audioPart}`;
           {extractState === 'unassigned' && (
             <div onClick={(e) => { e.stopPropagation(); setExtractState('idle'); }}>
               <FiFolderMinus style={{ fontSize: '2.2rem', color: '#ef4444', marginBottom: '0.4rem' }} />
-              <h3 style={{ margin: '0.2rem 0', fontSize: '0.92rem', fontWeight: 700, color: '#ef4444' }}>NO VERIFIED MATCH FOUND</h3>
-              <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>PDF saved under Unassigned PDFs. Click anywhere to reset.</p>
+              <h3 style={{ margin: '0.2rem 0', fontSize: '0.92rem', fontWeight: 700, color: '#ef4444' }}>SHADOW NOT FOUND</h3>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>Confidence below 70%. Saved to Unassigned PDFs. Click anywhere to reset.</p>
             </div>
           )}
         </div>
@@ -1165,7 +1175,33 @@ ${ticket.pdfUrl}${audioPart}`;
                       {pdf.extractedData?.gothram && <span><strong>Gothram:</strong> {pdf.extractedData.gothram}</span>}
                       {pdf.extractedData?.visitDate && <span><strong>Date:</strong> {formatDateStr(pdf.extractedData.visitDate)}</span>}
                       {pdf.extractedData?.slotTime && <span><strong>Time:</strong> {pdf.extractedData.slotTime}</span>}
+                      {pdf.extractedData?.ticketId && <span><strong>ID:</strong> {pdf.extractedData.ticketId}</span>}
                     </div>
+                    {pdf.reason && (
+                      <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#ef4444', fontWeight: 600 }}>
+                        Result: {pdf.reason}
+                      </div>
+                    )}
+                    {pdf.matchReport && (
+                      <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '0.75rem', maxWidth: '300px' }}>
+                        <h5 style={{ margin: '0 0 0.5rem 0', color: '#f59e0b' }}>MATCH REPORT</h5>
+                        {Object.keys(pdf.matchReport).map(key => {
+                          const rep = pdf.matchReport[key];
+                          if (!rep) return null;
+                          return (
+                            <div key={key} style={{ marginBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.2rem' }}>
+                              <div style={{ color: '#94a3b8', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>{key}:</span>
+                                <span>{rep.extracted}</span>
+                              </div>
+                              <div style={{ color: rep.matched ? '#10b981' : '#ef4444', borderTop: '1px dashed rgba(255,255,255,0.1)', marginTop: '0.1rem', paddingTop: '0.1rem' }}>
+                                {rep.dbValue} {rep.matched ? '✅ matched' : '❌ mismatch'}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: '0.3rem' }}>
                     <button 

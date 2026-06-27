@@ -8,22 +8,7 @@ const Booking = require('../models/Booking');
  */
 const normalizeText = (str) => {
   if (!str) return '';
-  let normalized = str.toLowerCase().replace(/[^a-z0-9]/g, '');
-  
-  // Handle phonetic variations in Telugu transliteration
-  normalized = normalized
-    .replace(/dh/g, 'd')
-    .replace(/th/g, 't')
-    .replace(/sh/g, 's')
-    .replace(/ch/g, 'c')
-    .replace(/bh/g, 'b')
-    .replace(/ph/g, 'p')
-    .replace(/gh/g, 'g')
-    .replace(/kh/g, 'k')
-    .replace(/ee/g, 'i')
-    .replace(/oo/g, 'u');
-    
-  return normalized;
+  return str.toLowerCase().replace(/[^a-z0-9]/g, '');
 };
 
 /**
@@ -135,41 +120,57 @@ const parseDate = (dateStr) => {
  */
 const parseFields = (text) => {
   const fields = {
+    ticketId: '',
     member1: '',
     member2: '',
     gothram: '',
     visitDate: '',
-    slotTime: ''
+    slotTime: '',
+    sevaName: '',
+    amount: ''
   };
 
-  // 1. Gothram Extraction
-  const gothramMatch = text.match(/(?:gothram|gothra)\s*[:|-]\s*([a-zA-Z\s]+)/i);
-  if (gothramMatch) {
-    fields.gothram = gothramMatch[1].trim().split(/\n|\r/)[0].trim();
-  }
+  // 1. Ticket ID
+  const ticketMatch = text.match(/Ticket\s*ID\s*[:|-]?\s*\n?([A-Za-z0-9]+)/i);
+  if (ticketMatch) fields.ticketId = ticketMatch[1].trim();
 
-  // 2. Member Names Extraction
-  // Find all instances of "Name: [Name]"
-  const nameMatches = [...text.matchAll(/(?:devotee|pilgrim|member)?\s*name\s*[:|-]\s*([a-zA-Z\s]+)/gi)];
-  if (nameMatches.length > 0) {
-    fields.member1 = nameMatches[0][1].trim().split(/\n|\r/)[0].trim();
-    if (nameMatches.length > 1) {
-      fields.member2 = nameMatches[1][1].trim().split(/\n|\r/)[0].trim();
+  // 2. Booker Names
+  const bookerMatch = text.match(/Booker\s*Names\s*[:|-]?\s*\n?([^\n]+)(?:\n([^\n]+))?/i);
+  if (bookerMatch) {
+    fields.member1 = bookerMatch[1] ? bookerMatch[1].trim() : '';
+    if (bookerMatch[2] && !/Gothram|Date|Slot|Ticket|Seva|Amount/i.test(bookerMatch[2])) {
+      fields.member2 = bookerMatch[2].trim();
+    }
+  } else {
+    // Fallback old format
+    const nameMatches = [...text.matchAll(/(?:devotee|pilgrim|member)?\s*name\s*[:|-]\s*([a-zA-Z\s]+)/gi)];
+    if (nameMatches.length > 0) {
+      fields.member1 = nameMatches[0][1].trim().split(/\n|\r/)[0].trim();
+      if (nameMatches.length > 1) {
+        fields.member2 = nameMatches[1][1].trim().split(/\n|\r/)[0].trim();
+      }
     }
   }
 
-  // 3. Visit Date Extraction
-  const dateMatch = text.match(/(?:date|visit date|date of visit)\s*[:|-]\s*([a-zA-Z0-9\s\/\-]+)/i);
-  if (dateMatch) {
-    const dateStr = dateMatch[1].trim().split(/\n|\r/)[0].trim();
-    fields.visitDate = parseDate(dateStr) || '';
-  }
+  // 3. Gothram
+  const gothramMatch = text.match(/(?:Gothram|Gothra)\s*[:|-]?\s*\n?([a-zA-Z\s]+)/i);
+  if (gothramMatch) fields.gothram = gothramMatch[1].trim().split(/\n|\r/)[0].trim();
 
-  // 4. Timeslot Extraction
-  const slotMatch = text.match(/(?:slot|time|slot time|samayam)\s*[:|-]\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*(?:-|to)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm))/i);
-  if (slotMatch) {
-    fields.slotTime = slotMatch[1].trim().toLowerCase().replace(/\s+/g, '');
-  }
+  // 4. Visit Date
+  const dateMatch = text.match(/(?:Performance\s*Date|Date|Visit Date|Date of Visit)\s*[:|-]?\s*\n?([a-zA-Z0-9\s\/\-]+)/i);
+  if (dateMatch) fields.visitDate = parseDate(dateMatch[1].trim().split(/\n|\r/)[0].trim()) || '';
+
+  // 5. Timeslot
+  const slotMatch = text.match(/(?:Time\s*Slot|Slot|Time|Slot Time|Samayam)\s*[:|-]?\s*\n?(\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*(?:-|to)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i);
+  if (slotMatch) fields.slotTime = slotMatch[1].trim().toLowerCase().replace(/\s+/g, '');
+
+  // 6. Seva Name
+  const sevaMatch = text.match(/Seva\s*Name\s*[:|-]?\s*\n?([a-zA-Z\s]+)/i);
+  if (sevaMatch) fields.sevaName = sevaMatch[1].trim().split(/\n|\r/)[0].trim();
+
+  // 7. Amount
+  const amountMatch = text.match(/Amount\s*[:|-]?\s*\n?(?:Rs\.?|₹|INR)?\s*([0-9,\.]+)/i);
+  if (amountMatch) fields.amount = amountMatch[1].trim().split(/\n|\r/)[0].trim();
 
   return fields;
 };
@@ -199,6 +200,7 @@ const findMatches = async (extractedData, adminId) => {
   const extMember2 = normalizeText(extractedData.member2);
   const extGothram = normalizeText(extractedData.gothram);
   const extDate = extractedData.visitDate; // YYYY-MM-DD format
+  const extSlot = extractedData.slotTime ? extractedData.slotTime.replace(/\s+/g, '') : '';
   
   const results = [];
   
@@ -207,50 +209,86 @@ const findMatches = async (extractedData, adminId) => {
     const bMember2 = normalizeText(b.member2);
     const bGothram = normalizeText(b.gothram);
     const bDate = getISTDateString(b.visitDate);
+    const bSlot = b.slotTime ? b.slotTime.toLowerCase().replace(/\s+/g, '') : '';
     
     let confidence = 0;
     let matchPriority = 0;
     
-    // Priority 1: Member1 + Gothram + Booked Date
-    if (bMember1 === extMember1 && bGothram === extGothram && bDate === extDate) {
+    const matchedM1 = (bMember1 && extMember1 && bMember1 === extMember1);
+    const matchedM2 = (bMember2 && extMember2 && bMember2 === extMember2);
+    const matchedG = (bGothram && extGothram && bGothram === extGothram);
+    const matchedD = (bDate && extDate && bDate === extDate);
+    const matchedS = (bSlot && extSlot && bSlot === extSlot);
+    
+    // Priority 1: Member1 + Member2 + Gothram + Booked Date
+    if (matchedM1 && matchedM2 && matchedG && matchedD) {
       confidence = 100;
       matchPriority = 1;
     }
-    // Priority 2: Member1 + Member2 + Booked Date
-    else if (bMember1 === extMember1 && bMember2 === extMember2 && bDate === extDate && bMember2 && extMember2) {
-      confidence = 98;
+    // Priority 2: Member1 + Gothram + Booked Date
+    else if (matchedM1 && matchedG && matchedD) {
+      confidence = 95;
       matchPriority = 2;
     }
-    // Priority 3: Member1 + Gothram (ignoring date, e.g. if visitDate was changed)
-    else if (bMember1 === extMember1 && bGothram === extGothram) {
-      confidence = 95;
+    // Priority 3: Member1 + Member2
+    else if (matchedM1 && matchedM2) {
+      confidence = 85;
       matchPriority = 3;
     }
-    // Priority 4: Member1 + Member2
-    else if (bMember1 === extMember1 && bMember2 === extMember2 && bMember2 && extMember2) {
-      confidence = 90;
+    // Priority 4: Gothram + Booked Date
+    else if (matchedG && matchedD) {
+      confidence = 75;
       matchPriority = 4;
     }
-    // Loose fallbacks for partial matching
-    else if (bMember1 === extMember1 && bDate === extDate) {
-      confidence = 80;
+    // Priority 5: Booked Date + Timeslot
+    else if (matchedD && matchedS) {
+      confidence = 70;
       matchPriority = 5;
     }
-    else if (bMember1 === extMember1) {
-      confidence = 70;
-      matchPriority = 6;
-    }
     
-    if (confidence > 0) {
-      results.push({
-        booking: b,
-        confidence,
-        priority: matchPriority
-      });
+    if (confidence === 0) {
+      if (matchedM1) confidence += 40;
+      if (matchedG) confidence += 30;
+      if (matchedD) confidence += 20;
     }
+
+    const matchReport = {
+      member1: {
+        extracted: extractedData.member1 || 'N/A',
+        dbValue: b.member1 || 'N/A',
+        matched: matchedM1
+      },
+      member2: {
+        extracted: extractedData.member2 || 'N/A',
+        dbValue: b.member2 || 'N/A',
+        matched: matchedM2
+      },
+      gothram: {
+        extracted: extractedData.gothram || 'N/A',
+        dbValue: b.gothram || 'N/A',
+        matched: matchedG
+      },
+      visitDate: {
+        extracted: extractedData.visitDate || 'N/A',
+        dbValue: bDate || 'N/A',
+        matched: matchedD
+      },
+      timeslot: {
+        extracted: extractedData.slotTime || 'N/A',
+        dbValue: b.slotTime || 'N/A',
+        matched: matchedS
+      }
+    };
+    
+    results.push({
+      booking: b,
+      confidence,
+      priority: matchPriority || 99,
+      matchReport
+    });
   }
   
-  // Sort by confidence DESC, then by visitDate ASC
+  // Sort by confidence DESC
   return results.sort((a, b) => b.confidence - a.confidence);
 };
 
