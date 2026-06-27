@@ -1,4 +1,4 @@
-const pdfParse = require('pdf-parse');
+const { PDFParse } = require('pdf-parse');
 const Tesseract = require('tesseract.js');
 const Booking = require('../models/Booking');
 
@@ -53,7 +53,9 @@ const extractJpegsFromPdf = (pdfBuffer) => {
 const extractPdfText = async (pdfBuffer) => {
   try {
     // 1. Try standard text parsing
-    const parsed = await pdfParse(pdfBuffer);
+    const parser = new PDFParse({ data: pdfBuffer });
+    const parsed = await parser.getText();
+    await parser.destroy();
     let text = parsed.text || '';
     
     // 2. If text is empty or too short, it's likely a scanned image PDF. Run OCR.
